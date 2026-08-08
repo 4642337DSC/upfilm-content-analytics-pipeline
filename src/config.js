@@ -1,3 +1,16 @@
+// Default BRAND_CONTEXT for the video analysis pipeline's Claude scoring
+// step (see prompts/videoAnalysisClaudeScoring.txt) - overridable via env,
+// but this repo is Isogreen-first (see CHANNEL_HANDLE/CLIENT_NAME above),
+// so scoring works out of the box without anyone having to set it.
+var ISOGREEN_BRAND_CONTEXT = 'ISOGREEN manufactures and installs blown cellulose insulation and mineral ' +
+  '(basalt) wool flakes, primarily for wood-frame and metal-frame houses. The brand\'s mission is ' +
+  'educating the public about sustainable, natural insulation solutions and energy efficiency. The ' +
+  'audience has two segments: homeowners evaluating insulation options for their build, and ' +
+  'professional installers/contractors who could purchase the product for their own installation ' +
+  'business. Common topics include: how blown insulation fills gaps better than rigid panels, ' +
+  'addressing common myths/objections (rodents, moisture, mold, fire risk), specific product lines ' +
+  '(ISOFULG, ISOFIBER, ISODEPOT), installation team/process credibility, and energy-bill savings.';
+
 export function getConfig() {
   return {
     YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY || null,
@@ -33,7 +46,7 @@ export function getConfig() {
     VIEWS_FIELD_NAME: process.env.VIEWS_FIELD_NAME || 'Total Views',
     HOOK_RATE_FIELD_NAME: process.env.HOOK_RATE_FIELD_NAME || 'YT Hook Rate',
     COMMENTS_FIELD_NAME: process.env.COMMENTS_FIELD_NAME || 'YT Comments',
-    BRAND_CONTEXT: process.env.BRAND_CONTEXT || '',
+    BRAND_CONTEXT: process.env.BRAND_CONTEXT || ISOGREEN_BRAND_CONTEXT,
     // Written to every Video Analysis row's "Pipeline Version" select, so
     // the v1-gemini-only baseline and this v2 pipeline can run side by side
     // on the same videos without overwriting each other (see Section 6 of
