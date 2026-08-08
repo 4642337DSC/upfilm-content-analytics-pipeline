@@ -1,0 +1,35 @@
+name: Daily video analysis extraction (Gemini)
+
+on:
+  schedule:
+    # 05:00 UTC - an hour after the daily view-count sync (sync.yml, 04:00
+    # UTC), so it isn't fighting that job for the same Notion integration's
+    # rate limit.
+    - cron: '0 5 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      # Isogreen only for now - the Video DB property names this pipeline
+      # reads (YouTube URL, Total Views, YT Hook Rate, YT Comments) were
+      # checked against Isogreen's real schema, not Miradex's. Add a
+      # Miradex leg here (with its own field-name env vars, same pattern as
+      # sync.yml's client matrix) once Miradex's Video DB schema has
+      # actually been checked and its own Video Analysis DB exists.
+      - name: Run Stage 1 extraction (Isogreen)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.ISOGREEN_NOTION_DATABASE_ID }}
+          VIDEO_ANALYSIS_DATABASE_ID: ${{ secrets.ISOGREEN_VIDEO_ANALYSIS_DATABASE_ID }}
+        run: npm run analyze:extract
