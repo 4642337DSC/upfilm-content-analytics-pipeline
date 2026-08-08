@@ -9,10 +9,15 @@ var PROMPTS_DIR = path.join(__dirname, '..', 'prompts');
 var CACHE_DIR = path.join(__dirname, '..', 'cache');
 
 var GEMINI_API_BASE = 'https://generativelanguage.googleapis.com';
-// Kept on the same model used for the validated ρ=0.55 baseline - this
-// migration changes the pipeline architecture, not the extraction model, so
-// the two aren't conflated in the A/B validation (see videoAnalysisValidate.js).
-var GEMINI_MODEL = 'gemini-2.5-flash';
+// gemini-2.5-flash (the model the original ρ=0.55 baseline was validated
+// against) returns 404 "no longer available to new users" for any API key
+// created after its cutoff - confirmed live via the first extraction run
+// against a fresh GEMINI_API_KEY. gemini-3.6-flash is the current
+// equivalent flash-tier model with the same fileData/fileUri video input
+// support. This means the A/B validation in videoAnalysisValidate.js is no
+// longer purely "architecture change, model held constant" - flag that
+// when interpreting its results.
+var GEMINI_MODEL = 'gemini-3.6-flash';
 
 function extractionPrompt() {
   return fs.readFileSync(path.join(PROMPTS_DIR, 'videoAnalysisGeminiExtraction.txt'), 'utf8');
