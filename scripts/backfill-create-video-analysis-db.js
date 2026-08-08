@@ -59,6 +59,11 @@ var body = {
     'Overall Notes': { rich_text: {} },
     'Reusable Pattern': { rich_text: {} },
     'Raw Extraction': { rich_text: {} },
+    // Set true by extraction-only rows (npm run analyze:extract, no
+    // ANTHROPIC_API_KEY needed) and cleared once a Claude Code agent session
+    // scores the row directly against Notion - see
+    // prompts/videoAnalysisScoringAgentTask.md.
+    'Needs Scoring': { checkbox: {} },
     'Analyzed Date': { date: {} },
     'Pipeline Version': {
       select: {

@@ -48,9 +48,25 @@ export function requireConfig(cfg) {
   }
 }
 
+// Stage 1 only - what npm run analyze:extract needs. Does not require
+// ANTHROPIC_API_KEY: scoring either happens via scoreVideo() (if a key is
+// set) or is left for a live Claude Code agent session to do directly
+// against Notion (see prompts/videoAnalysisScoringAgentTask.md) - no API
+// key needed for that path, since it runs on the account's own Claude
+// access rather than a metered console.anthropic.com key.
+export function requireVideoAnalysisExtractionConfig(cfg) {
+  if (!cfg.GEMINI_API_KEY || !cfg.NOTION_TOKEN || !cfg.NOTION_DATABASE_ID || !cfg.VIDEO_ANALYSIS_DATABASE_ID) {
+    throw new Error('Missing required env vars. Set GEMINI_API_KEY, NOTION_TOKEN, NOTION_DATABASE_ID, VIDEO_ANALYSIS_DATABASE_ID (see .env.example).');
+  }
+}
+
+// Full API-driven pipeline (Stage 1 + Stage 2 scoreVideo() in one script
+// run) - only needed if you have an ANTHROPIC_API_KEY and want scoring to
+// happen unattended in the same run as extraction, e.g. from cron.
 export function requireVideoAnalysisConfig(cfg) {
-  if (!cfg.GEMINI_API_KEY || !cfg.ANTHROPIC_API_KEY || !cfg.NOTION_TOKEN || !cfg.NOTION_DATABASE_ID || !cfg.VIDEO_ANALYSIS_DATABASE_ID) {
-    throw new Error('Missing required env vars. Set GEMINI_API_KEY, ANTHROPIC_API_KEY, NOTION_TOKEN, NOTION_DATABASE_ID, VIDEO_ANALYSIS_DATABASE_ID (see .env.example).');
+  requireVideoAnalysisExtractionConfig(cfg);
+  if (!cfg.ANTHROPIC_API_KEY) {
+    throw new Error('Missing ANTHROPIC_API_KEY. Either set it, or run `npm run analyze:extract` instead and score via a Claude Code agent session (see prompts/videoAnalysisScoringAgentTask.md).');
   }
 }
 

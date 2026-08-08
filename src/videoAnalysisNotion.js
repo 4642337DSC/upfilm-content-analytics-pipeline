@@ -115,13 +115,9 @@ async function findAnalysisRow(cfg, videoPageId, pipelineVersion) {
   return data.results[0].id;
 }
 
-// Creates (or updates, if a row for this video+pipeline version already
-// exists - keeps re-runs idempotent) the Video Analysis row. rawExtraction
-// is stored alongside the scores so a later prompt tweak can re-score
-// without re-paying for Gemini video tokens (see src/videoAnalysisPipeline.js).
-export async function writeAnalysisResult(cfg, options) {
+export function buildAnalysisProps(options) {
   var scores = options.analysis.scores;
-  var props = {
+  return {
     'Name': { title: [{ text: { content: options.videoName || options.analysis.video_id || options.videoPageId } }] },
     'Video': { relation: [{ id: options.videoPageId }] },
     'Hook Score': { number: scores.hook.score },
@@ -132,15 +128,84 @@ export async function writeAnalysisResult(cfg, options) {
     'Overall Notes': { rich_text: chunkRichText(options.analysis.overall_notes || '') },
     'Reusable Pattern': { rich_text: chunkRichText(options.analysis.reusable_pattern || '') },
     'Raw Extraction': { rich_text: chunkRichText(JSON.stringify(options.rawExtraction)) },
+    'Needs Scoring': { checkbox: false },
     'Analyzed Date': { date: { start: new Date().toISOString() } },
     'Pipeline Version': { select: { name: options.pipelineVersion } }
   };
+}
 
+// Creates (or updates, if a row for this video+pipeline version already
+// exists - keeps re-runs idempotent) the Video Analysis row. rawExtraction
+// is stored alongside the scores so a later prompt tweak can re-score
+// without re-paying for Gemini video tokens (see src/videoAnalysisPipeline.js).
+export async function writeAnalysisResult(cfg, options) {
+  var props = buildAnalysisProps(options);
   var existingId = await findAnalysisRow(cfg, options.videoPageId, options.pipelineVersion);
   if (existingId) {
     return updateNotionPage(cfg, existingId, props);
   }
   return createNotionPage(cfg, cfg.VIDEO_ANALYSIS_DATABASE_ID, props);
+}
+
+export function buildExtractionOnlyProps(options) {
+  return {
+    'Name': { title: [{ text: { content: options.videoName || options.rawExtraction.video_id || options.videoPageId } }] },
+    'Video': { relation: [{ id: options.videoPageId }] },
+    'Raw Extraction': { rich_text: chunkRichText(JSON.stringify(options.rawExtraction)) },
+    'Needs Scoring': { checkbox: true },
+    'Analyzed Date': { date: { start: new Date().toISOString() } },
+    'Pipeline Version': { select: { name: options.pipelineVersion } }
+  };
+}
+
+// Stage 1 only, no Stage 2 - writes the raw extraction and flags the row
+// "Needs Scoring" for a Claude Code agent session to pick up directly
+// against Notion (see prompts/videoAnalysisScoringAgentTask.md), instead of
+// an ANTHROPIC_API_KEY-backed scoreVideo() call. Same idempotent
+// find-or-create as writeAnalysisResult, so a later scoring pass updates
+// this same row rather than creating a duplicate.
+export async function writeExtractionOnly(cfg, options) {
+  var props = buildExtractionOnlyProps(options);
+  var existingId = await findAnalysisRow(cfg, options.videoPageId, options.pipelineVersion);
+  if (existingId) {
+    return updateNotionPage(cfg, existingId, props);
+  }
+  return createNotionPage(cfg, cfg.VIDEO_ANALYSIS_DATABASE_ID, props);
+}
+
+// Rows a Claude Code agent session should score next: this pipeline
+// version, flagged "Needs Scoring", with their raw extraction and linked
+// Video row's performance context attached.
+export async function fetchRowsNeedingScoring(cfg, pipelineVersion) {
+  var analysisRows = await queryAll(cfg, cfg.VIDEO_ANALYSIS_DATABASE_ID, {
+    and: [
+      { property: 'Pipeline Version', select: { equals: pipelineVersion } },
+      { property: 'Needs Scoring', checkbox: { equals: true } }
+    ]
+  });
+  var allVideoRows = await fetchAllVideoRows(cfg);
+  var videoRowsByPageId = {};
+  allVideoRows.forEach(function (row) { videoRowsByPageId[row.pageId] = row; });
+  var channelBaseline = computeChannelBaseline(allVideoRows);
+
+  return analysisRows.map(function (page) {
+    var relation = page.properties['Video'] && page.properties['Video'].relation;
+    var videoPageId = relation && relation[0] ? relation[0].id : null;
+    var videoRow = videoPageId ? videoRowsByPageId[videoPageId] : null;
+    var rawExtraction;
+    try {
+      rawExtraction = JSON.parse(richTextToString(page.properties['Raw Extraction']));
+    } catch (err) {
+      rawExtraction = null;
+    }
+    return {
+      analysisPageId: page.id,
+      videoPageId: videoPageId,
+      videoName: videoRow ? videoRow.name : null,
+      rawExtraction: rawExtraction,
+      performance: videoRow ? buildPerformanceContext(videoRow, channelBaseline) : null
+    };
+  }).filter(function (row) { return row.videoPageId && row.rawExtraction; });
 }
 
 export function richTextFromAnalysisPage(page, propertyName) {
