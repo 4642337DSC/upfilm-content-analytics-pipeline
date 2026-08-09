@@ -50,6 +50,35 @@ export async function fetchAllVideoRows(cfg) {
   return videoRows.map(function (page) { return parseVideoRow(cfg, page); });
 }
 
+// Today's video(s) (by "Data Postare") first, then the rest of the backlog
+// ordered by view count descending - so a capped/limited run (see
+// src/videoAnalysisPipeline.js's --limit) always covers the freshest video
+// plus whatever's already proven to be a top performer, instead of
+// whatever order Notion happened to return rows in.
+export function sortForAnalysis(rows, today) {
+  today = today || new Date().toISOString().slice(0, 10);
+  return rows.slice().sort(function (a, b) {
+    var aToday = a.postDate === today;
+    var bToday = b.postDate === today;
+    if (aToday !== bToday) return aToday ? -1 : 1;
+    var aViews = typeof a.views === 'number' ? a.views : -1;
+    var bViews = typeof b.views === 'number' ? b.views : -1;
+    return bViews - aViews;
+  });
+}
+
+// Inclusive YYYY-MM-DD range filter for a one-off backfill (see
+// src/videoAnalysisPipeline.js's --from/--to) - string comparison is safe
+// since postDate is always an ISO YYYY-MM-DD from Notion's date property.
+export function filterByDateRange(rows, from, to) {
+  return rows.filter(function (row) {
+    if (!row.postDate) return false;
+    if (from && row.postDate < from) return false;
+    if (to && row.postDate > to) return false;
+    return true;
+  });
+}
+
 export async function fetchVideosNeedingAnalysis(cfg, pipelineVersion, allRows) {
   var rows = allRows || await fetchAllVideoRows(cfg);
   var analysisRows = await queryAll(cfg, cfg.VIDEO_ANALYSIS_DATABASE_ID, {
@@ -62,9 +91,10 @@ export async function fetchVideosNeedingAnalysis(cfg, pipelineVersion, allRows) 
     (relation || []).forEach(function (r) { alreadyAnalyzed.add(r.id); });
   });
 
-  return rows
+  var pending = rows
     .filter(function (row) { return !alreadyAnalyzed.has(row.pageId); })
     .filter(function (row) { return !!row.youtubeUrl; });
+  return sortForAnalysis(pending);
 }
 
 function parseVideoRow(cfg, page) {
@@ -126,6 +156,7 @@ export function buildAnalysisProps(options) {
     'Pacing Score': { number: scores.pacing.score },
     'CTA Score': { number: scores.cta.score },
     'Overall Notes': { rich_text: chunkRichText(options.analysis.overall_notes || '') },
+    'Performance Notes': { rich_text: chunkRichText(options.analysis.performance_notes || '') },
     'Reusable Pattern': { rich_text: chunkRichText(options.analysis.reusable_pattern || '') },
     'Raw Extraction': { rich_text: chunkRichText(JSON.stringify(options.rawExtraction)) },
     'Needs Scoring': { checkbox: false },

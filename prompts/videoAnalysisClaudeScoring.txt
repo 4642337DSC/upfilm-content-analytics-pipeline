@@ -19,7 +19,18 @@ an absolute standard - a video that underperforms its own channel's average is a
 different finding than one that underperforms some general benchmark.
 
 Also fill in:
-- overall_notes: a short summary of what's notable about this video.
+- overall_notes: 2-4 short bullet points (one per line, no leading "-" - the renderer adds
+  the bullet) summarizing what's notable about this video. Each point should be one
+  scannable sentence. Do not write a single dense paragraph - split distinct observations
+  onto their own lines even if that means being more terse.
+- performance_notes: 1-3 sentences on WHY this video likely over- or under-performed
+  relative to the channel baseline given in the performance context below. Ground this in
+  the category scores and observation data - e.g. "underperformed despite a strong hook
+  because pacing was static (only 4 cuts across 61s) and the CTA reads as a cut-off ending
+  rather than a deliberate ask." If nothing in the craft explains the performance (strong
+  scores but still below baseline, or vice versa), say so explicitly rather than inventing
+  a reason - that itself is a useful finding (points to distribution/thumbnail/timing
+  factors instead of content quality).
 - reusable_pattern: one sentence describing a technique from this video that could be
   reused elsewhere, if any concrete one stands out. Leave it empty if nothing specific
   stands out - do not force a pattern that isn't there.

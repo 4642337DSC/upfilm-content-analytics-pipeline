@@ -88,9 +88,57 @@ export function buildVideoDetail(page) {
 // Reads the fields the dashboard needs (view counts, per-platform URLs,
 // transcript) that the sync path's parseNotionRow doesn't - kept separate
 // so the sync path isn't carrying fields it never uses.
+// Stage 2 (Claude) scoring output, keyed by the Video Analysis row's "Video"
+// relation target - null (not five nulls) when a row hasn't been scored yet
+// (Hook Score absent), so the dashboard can tell "not scored" apart from
+// "scored zero" and skip rendering the section entirely for the former.
+export function claudeScoresOrNull(props) {
+  var hookScore = numOrNull(props['Hook Score']);
+  if (hookScore === null) return null;
+  return {
+    hookScore: hookScore,
+    structureScore: numOrNull(props['Structure Score']),
+    formatScore: numOrNull(props['Format Score']),
+    pacingScore: numOrNull(props['Pacing Score']),
+    ctaScore: numOrNull(props['CTA Score']),
+    overallNotes: richTextToString(props['Overall Notes']) || null,
+    performanceNotes: richTextToString(props['Performance Notes']) || null,
+    reusablePattern: richTextToString(props['Reusable Pattern']) || null
+  };
+}
+
+// Reads every completed (this pipeline version's) Video Analysis row once
+// and keys the result by the linked Video page's id, rather than querying
+// per-video - the DB is small enough (one row per analyzed video) that a
+// single full scan is simpler and cheaper than N relation lookups.
+export async function fetchClaudeAnalysisByVideoPageId(cfg) {
+  var map = {};
+  if (!cfg.VIDEO_ANALYSIS_DATABASE_ID) return map;
+  var cursor = null;
+  do {
+    var payload = {
+      page_size: 100,
+      filter: { property: 'Pipeline Version', select: { equals: cfg.PIPELINE_VERSION } }
+    };
+    if (cursor) payload.start_cursor = cursor;
+    var data = await queryNotionDatabase(cfg, cfg.VIDEO_ANALYSIS_DATABASE_ID, payload);
+    if (data.object === 'error') throw new Error('Video Analysis query failed: ' + data.message);
+    (data.results || []).forEach(function (page) {
+      var props = page.properties;
+      var relation = props['Video'] && props['Video'].relation;
+      var videoPageId = relation && relation[0] ? relation[0].id : null;
+      var scores = claudeScoresOrNull(props);
+      if (videoPageId && scores) map[videoPageId] = scores;
+    });
+    cursor = data.has_more ? data.next_cursor : null;
+  } while (cursor);
+  return map;
+}
+
 export async function fetchDashboardRows(cfg, thumbMap) {
   var out = [];
   var details = {};
+  var pageIdByCod = {};
   var cursor = null;
   do {
     var payload = {
@@ -104,11 +152,21 @@ export async function fetchDashboardRows(cfg, thumbMap) {
       var row = buildDashboardRow(cfg, page, thumbMap);
       if (row) {
         out.push(row);
-        if (row[1]) details[row[1]] = buildVideoDetail(page);
+        if (row[1]) {
+          details[row[1]] = buildVideoDetail(page);
+          pageIdByCod[row[1]] = page.id;
+        }
       }
     });
     cursor = data.has_more ? data.next_cursor : null;
   } while (cursor);
+
+  var claudeByPageId = await fetchClaudeAnalysisByVideoPageId(cfg);
+  Object.keys(pageIdByCod).forEach(function (cod) {
+    var claude = claudeByPageId[pageIdByCod[cod]];
+    if (claude) details[cod].claude = claude;
+  });
+
   out.sort(function (a, b) { return a[6] < b[6] ? -1 : a[6] > b[6] ? 1 : 0; }); // ascending by post date
   return { rows: out, details: details };
 }

@@ -65,6 +65,7 @@ var validScoring = {
     cta: { score: 4, reasoning: 'r', evidence_timestamps: [] }
   },
   overall_notes: 'notes',
+  performance_notes: 'why it performed the way it did',
   reusable_pattern: ''
 };
 

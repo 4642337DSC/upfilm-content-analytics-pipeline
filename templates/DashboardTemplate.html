@@ -927,6 +927,39 @@
   .detail-hook-quote.empty { border-left-color: var(--border-2); color: var(--muted); }
   .detail-hook-source { margin-top: 5px; font-family: var(--font-mono); font-size: 10.5px; font-style: normal; color: var(--muted); }
 
+  /* ---------- Claude analysis (Stage 2 scoring) ---------- */
+  .detail-claude-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .detail-claude-score { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .detail-claude-score-label { font-family: var(--font-display); font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .detail-claude-score-value { font-family: var(--font-mono); font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .detail-claude-score-value .of10 { font-size: 11.5px; font-weight: 400; color: var(--muted); }
+  .detail-claude-score-track { position: relative; width: 100%; height: 6px; background: var(--grid); border-radius: 999px; margin-top: 8px; }
+  .detail-claude-score-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; }
+  .detail-claude-sublabel { font-family: var(--font-display); font-size: 11.5px; font-weight: 600; color: var(--ink-2); margin: 2px 0 6px; }
+  .detail-claude-note { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 13px; line-height: 1.6; color: var(--ink-2); white-space: pre-wrap; }
+  .detail-claude-note + .detail-claude-sublabel { margin-top: 14px; }
+  .detail-claude-notes-list { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px 12px 30px; margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-2); }
+  .detail-claude-notes-list li { padding: 2px 0; }
+  .detail-claude-notes-list li + li { margin-top: 4px; }
+  .detail-claude-performance { border-left: 3px solid var(--accent); background: var(--accent-wash); border-radius: 0 10px 10px 0; padding: 10px 14px; font-size: 13.5px; line-height: 1.6; color: var(--ink-2); margin-bottom: 14px; }
+
+  /* ---------- channel benchmarks (median/average per metric, one table) ---------- */
+  .benchmarks-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: 10px; }
+  .benchmarks-table { border-collapse: collapse; width: 100%; min-width: 760px; }
+  .benchmarks-table th, .benchmarks-table td { padding: 8px 12px; font-size: 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .benchmarks-table thead th { font-family: var(--font-display); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); background: var(--surface-2); }
+  .benchmarks-table thead tr:first-child th { text-align: center; }
+  .benchmarks-table thead th.bm-metric-head { text-align: left; vertical-align: bottom; }
+  .benchmarks-table thead th.bm-platform-head { border-left: 2px solid var(--border-2); }
+  .benchmarks-table thead th.bm-subhead { border-left: 2px solid var(--border-2); text-align: right; }
+  .benchmarks-table thead th.bm-subhead + th.bm-subhead { border-left: none; }
+  .benchmarks-table tbody th { text-align: left; font-family: var(--font-display); font-weight: 600; font-size: 12.5px; color: var(--ink); background: var(--surface); }
+  .benchmarks-table tbody td { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  .benchmarks-table tbody td.bm-platform-start { border-left: 2px solid var(--border-2); }
+  .benchmarks-table tbody tr:last-child th, .benchmarks-table tbody tr:last-child td { border-bottom: none; }
+  .benchmarks-table tbody tr:hover th, .benchmarks-table tbody tr:hover td { background: var(--surface-2); }
+  .benchmarks-note { font-size: 11.5px; color: var(--muted); padding: 10px 2px 0; line-height: 1.5; }
+
   .detail-modal-footer {
     display: flex;
     gap: 10px;
@@ -1038,6 +1071,20 @@
     <div class="perf-filters" id="perfFilters" role="group" aria-label="Filter by platform"></div>
     <div class="perf-grid" id="rankList"></div>
     <div class="table-more" id="perfMore"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div class="card-title">Channel benchmarks</div>
+      <div class="card-note">Median &amp; average per platform, across every tracked short (not affected by the date range above)</div>
+    </div>
+    <div class="benchmarks-table-wrap">
+      <table class="benchmarks-table" id="benchmarksTable">
+        <thead id="benchmarksTableHead"></thead>
+        <tbody id="benchmarksTableBody"></tbody>
+      </table>
+    </div>
+    <div class="benchmarks-note">Hook rate windows differ by platform (YouTube/Instagram: past 3s, Facebook: past 6s) - not directly comparable across the row.</div>
   </section>
 
   <section class="card">
@@ -2294,6 +2341,140 @@
   }
   var CHANNEL_MEDIANS = computeChannelMedians();
 
+  function mean(values) {
+    if (!values.length) return null;
+    return values.reduce(function (a, b) { return a + b; }, 0) / values.length;
+  }
+
+  // "Channel benchmarks" card shows median AND average side by side (unlike
+  // the popup's delta badges above, which deliberately use median only -
+  // see the comment on computeChannelMedians) so a reader can see both and
+  // judge for themselves how skewed a metric is, rather than the dashboard
+  // picking one number on their behalf. Includes raw view counts (from
+  // DATA, keyed by cod) alongside every DETAIL_METRICS engagement metric,
+  // since "every video metric" should include the metric everyone actually
+  // looks at first. Rendered as one table (rows = metric, columns = one
+  // Median/Avg pair per platform) rather than a per-platform panel grid, so
+  // the same metric can be compared across platforms at a glance.
+  //
+  // BENCHMARK_ROWS is the canonical row order/labels; each platform's
+  // DETAIL_METRICS entries are tagged with a matching "key" (e.g. both
+  // YT's "Hook rate (past 3s)" and FB's "Hook rate (past 6s)" map to
+  // "hookRate") so differently-labeled per-platform metrics still line up
+  // in the same row - the platform-specific window is called out in the
+  // note under the table instead of the row label.
+  var BENCHMARK_ROWS = [
+    { key: "views", label: "Views" },
+    { key: "likes", label: "Likes" },
+    { key: "comments", label: "Comments" },
+    { key: "shares", label: "Shares" },
+    { key: "saves", label: "Saves" },
+    { key: "hookRate", label: "Hook rate" },
+    { key: "avgWatchPct", label: "Avg % watched" },
+    { key: "avgWatchTime", label: "Avg watch time" }
+  ];
+  var DETAIL_METRIC_KEYS = {
+    yt: { "Likes": "likes", "Comments": "comments", "Hook rate (past 3s)": "hookRate", "Avg % watched": "avgWatchPct", "Avg watch time": "avgWatchTime" },
+    fb: { "Likes": "likes", "Hook rate (past 6s)": "hookRate", "Avg % watched": "avgWatchPct", "Avg watch time": "avgWatchTime" },
+    ig: { "Likes": "likes", "Comments": "comments", "Saves": "saves", "Shares": "shares", "Hook rate (past 3s)": "hookRate", "Avg % watched": "avgWatchPct", "Avg watch time": "avgWatchTime" },
+    tt: { "Likes": "likes", "Comments": "comments", "Shares": "shares", "Saves": "saves" }
+  };
+
+  var DATA_BY_COD = {};
+  DATA.forEach(function (r) { DATA_BY_COD[r.cod] = r; });
+
+  function computeChannelStats() {
+    var stats = {};
+    PLATFORMS.forEach(function (p) {
+      var specs = [{ key: "views", fmt: fmtFull, unit: "count", value: function (cod) { var r = DATA_BY_COD[cod]; return r ? r[p.key] : null; } }];
+      (DETAIL_METRICS[p.key] || []).forEach(function (spec) {
+        var key = DETAIL_METRIC_KEYS[p.key][spec.label];
+        if (!key) return;
+        specs.push({ key: key, fmt: spec.fmt, unit: spec.unit, value: function (cod) { var d = VIDEO_DETAILS[cod]; return d ? spec.value(d) : null; } });
+      });
+      var byKey = {};
+      specs.forEach(function (spec) {
+        var values = DATA.map(function (r) { return spec.value(r.cod); }).filter(function (v) { return typeof v === "number"; });
+        byKey[spec.key] = { fmt: spec.fmt, unit: spec.unit, median: median(values), mean: mean(values), n: values.length };
+      });
+      stats[p.key] = byKey;
+    });
+    return stats;
+  }
+  var CHANNEL_STATS = computeChannelStats();
+
+  // "count" metrics (views, likes, comments...) round the average to a
+  // whole number before formatting - fmtFull's toLocaleString would
+  // otherwise print a raw mean like "15,234.6", which reads as spuriously
+  // precise for a count. Percent/seconds metrics already format to one
+  // decimal place via their own fmt, so they pass through unchanged.
+  function fmtBenchmark(stat, v) {
+    if (typeof v !== "number") return "—";
+    return stat.unit === "count" ? Math.round(v).toLocaleString("en-US") : stat.fmt(v);
+  }
+
+  function renderChannelBenchmarks() {
+    var thead = document.getElementById("benchmarksTableHead");
+    var tbody = document.getElementById("benchmarksTableBody");
+    if (!thead || !tbody) return;
+
+    var platformsWithData = PLATFORMS.filter(function (p) {
+      return BENCHMARK_ROWS.some(function (row) { var s = CHANNEL_STATS[p.key][row.key]; return s && s.n > 0; });
+    });
+
+    thead.textContent = "";
+    var headRow1 = document.createElement("tr");
+    var metricHead = document.createElement("th");
+    metricHead.className = "bm-metric-head";
+    metricHead.rowSpan = 2;
+    metricHead.textContent = "Metric";
+    headRow1.appendChild(metricHead);
+    platformsWithData.forEach(function (p) {
+      var th = document.createElement("th");
+      th.className = "bm-platform-head";
+      th.colSpan = 2;
+      th.appendChild(platformIcon(p.key, "sm"));
+      th.appendChild(document.createTextNode(" " + p.label));
+      headRow1.appendChild(th);
+    });
+    thead.appendChild(headRow1);
+
+    var headRow2 = document.createElement("tr");
+    platformsWithData.forEach(function () {
+      ["Median", "Avg"].forEach(function (label) {
+        var th = document.createElement("th");
+        th.className = "bm-subhead";
+        th.textContent = label;
+        headRow2.appendChild(th);
+      });
+    });
+    thead.appendChild(headRow2);
+
+    tbody.textContent = "";
+    BENCHMARK_ROWS.forEach(function (rowDef) {
+      var anyData = platformsWithData.some(function (p) { var s = CHANNEL_STATS[p.key][rowDef.key]; return s && s.n > 0; });
+      if (!anyData) return;
+
+      var tr = document.createElement("tr");
+      var th = document.createElement("th");
+      th.scope = "row";
+      th.textContent = rowDef.label;
+      tr.appendChild(th);
+
+      platformsWithData.forEach(function (p) {
+        var stat = CHANNEL_STATS[p.key][rowDef.key];
+        [stat && stat.median, stat && stat.mean].forEach(function (v, i) {
+          var td = document.createElement("td");
+          if (i === 0) td.className = "bm-platform-start";
+          td.textContent = stat ? fmtBenchmark(stat, v) : "—";
+          tr.appendChild(td);
+        });
+      });
+
+      tbody.appendChild(tr);
+    });
+  }
+
   // Shared delta-vs-median formatter, used by the engagement panels below
   // and by the chart tabs' bar rows. Every compare metric here is "more is
   // better" - no per-metric direction needed. All three units show an
@@ -2705,6 +2886,120 @@
     return panel;
   }
 
+  // Stage 2 (Claude) scoring output - detail.claude is only present once a
+  // video has actually been scored (see claudeScoresOrNull in dashboard.js),
+  // so an unscored video shows a plain "not yet scored" note instead of a
+  // grid of misleading zeros.
+  var CLAUDE_SCORES = [
+    { key: "hookScore", label: "Hook" },
+    { key: "structureScore", label: "Structure" },
+    { key: "formatScore", label: "Format" },
+    { key: "pacingScore", label: "Pacing" },
+    { key: "ctaScore", label: "CTA" }
+  ];
+  // Splits Claude's overall_notes into a readable list of short points: one
+  // bullet per line if the text already has line breaks (the current
+  // prompt asks for this - see prompts/videoAnalysisClaudeScoring.txt),
+  // otherwise falls back to splitting a dense paragraph on sentence
+  // boundaries so older analysis rows (written before that prompt change)
+  // still render as more than one wall of text.
+  function splitIntoPoints(text) {
+    var lines = text.split(/\r?\n/)
+      .map(function (l) { return l.replace(/^\s*[-*•]\s*/, "").trim(); })
+      .filter(Boolean);
+    if (lines.length > 1) return lines;
+    var sentences = text.trim().split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map(function (s) { return s.trim(); }).filter(Boolean);
+    return sentences.length > 1 ? sentences : [text.trim()];
+  }
+
+  function buildClaudeSection(detail) {
+    var wrap = document.createElement("div");
+    var label = document.createElement("div");
+    label.className = "detail-section-label";
+    label.textContent = "Claude analysis";
+    wrap.appendChild(label);
+
+    var c = detail.claude;
+    if (!c) {
+      wrap.appendChild(emptyNote("Not yet scored by the video analysis pipeline."));
+      return wrap;
+    }
+
+    var grid = document.createElement("div");
+    grid.className = "detail-claude-grid";
+    CLAUDE_SCORES.forEach(function (s) {
+      var v = c[s.key];
+      if (typeof v !== "number") return;
+      var card = document.createElement("div");
+      card.className = "detail-claude-score";
+
+      var lbl = document.createElement("div");
+      lbl.className = "detail-claude-score-label";
+      lbl.textContent = s.label;
+      card.appendChild(lbl);
+
+      var val = document.createElement("div");
+      val.className = "detail-claude-score-value";
+      val.appendChild(document.createTextNode(v));
+      var of10 = document.createElement("span");
+      of10.className = "of10";
+      of10.textContent = " / 10";
+      val.appendChild(of10);
+      card.appendChild(val);
+
+      var track = document.createElement("div");
+      track.className = "detail-claude-score-track";
+      var fill = document.createElement("div");
+      fill.className = "detail-claude-score-fill";
+      fill.style.width = Math.max(0, Math.min(10, v)) * 10 + "%";
+      fill.style.background = v >= 7 ? "var(--good)" : v <= 3 ? "var(--bad)" : "var(--accent)";
+      track.appendChild(fill);
+      card.appendChild(track);
+
+      grid.appendChild(card);
+    });
+    wrap.appendChild(grid);
+
+    if (c.performanceNotes) {
+      var perfLabel = document.createElement("div");
+      perfLabel.className = "detail-claude-sublabel";
+      perfLabel.textContent = "Why it performed this way";
+      wrap.appendChild(perfLabel);
+      var perf = document.createElement("div");
+      perf.className = "detail-claude-performance";
+      perf.textContent = c.performanceNotes;
+      wrap.appendChild(perf);
+    }
+
+    if (c.overallNotes) {
+      var notesLabel = document.createElement("div");
+      notesLabel.className = "detail-claude-sublabel";
+      notesLabel.textContent = "Overall notes";
+      wrap.appendChild(notesLabel);
+      var notesList = document.createElement("ul");
+      notesList.className = "detail-claude-notes-list";
+      splitIntoPoints(c.overallNotes).forEach(function (point) {
+        var li = document.createElement("li");
+        li.textContent = point;
+        notesList.appendChild(li);
+      });
+      wrap.appendChild(notesList);
+    }
+
+    if (c.reusablePattern) {
+      var patternLabel = document.createElement("div");
+      patternLabel.className = "detail-claude-sublabel";
+      patternLabel.textContent = "Reusable pattern";
+      wrap.appendChild(patternLabel);
+      var pattern = document.createElement("div");
+      pattern.className = "detail-claude-note";
+      pattern.textContent = c.reusablePattern;
+      wrap.appendChild(pattern);
+    }
+
+    return wrap;
+  }
+
   function buildChartTabs(r, detail) {
     var tabDefs = [
       { key: "retention", label: "Retention curve", panel: buildRetentionPanel(detail) },
@@ -2825,6 +3120,8 @@
     body.appendChild(engagementWrap);
 
     body.appendChild(buildChartTabs(r, detail));
+
+    body.appendChild(buildClaudeSection(detail));
 
     if (r.link) {
       var footer = document.createElement("div");
@@ -2975,6 +3272,7 @@
   renderPerfFilters();
   renderTheadOnce();
   renderAudience();
+  renderChannelBenchmarks();
   renderAll();
 })();
 </script>
