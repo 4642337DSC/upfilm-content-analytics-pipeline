@@ -40,6 +40,13 @@ export async function syncAllViews() {
 
   var rows = await fetchNotionRows(cfg);
 
+  // Notion's Thumbnail file property is a signed, time-limited S3 URL that
+  // gets captured once here in `rows` - so download the images immediately,
+  // before the YouTube/Facebook/Instagram/TikTok syncs below (which can run
+  // for tens of minutes) have a chance to let those signed URLs expire.
+  var thumbMap = {};
+  try { thumbMap = await syncThumbnails(cfg, rows, path.join(DIST_DIR, 'thumbs')); } catch (e) { console.log('Thumbnail sync failed: ' + e); }
+
   var yt = await syncYouTube(cfg, rows);
   // Instagram has no duration field of its own (confirmed - Meta doesn't
   // expose one on the Media node) - reused from YouTube's here so its
@@ -53,9 +60,6 @@ export async function syncAllViews() {
   await writeUpdates(cfg, rows, yt, fb, ig, tt);
 
   try { await syncAudience(cfg); } catch (e) { console.log('Audience sync failed: ' + e); }
-
-  var thumbMap = {};
-  try { thumbMap = await syncThumbnails(cfg, rows, path.join(DIST_DIR, 'thumbs')); } catch (e) { console.log('Thumbnail sync failed: ' + e); }
 
   var oldestDate = oldestPostDate(rows);
 
