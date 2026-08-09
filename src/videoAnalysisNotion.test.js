@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAnalysisProps, buildExtractionOnlyProps, buildPerformanceContext, computeChannelBaseline } from './videoAnalysisNotion.js';
+import { buildAnalysisProps, buildExtractionOnlyProps, buildPerformanceContext, computeChannelBaseline, sortForAnalysis } from './videoAnalysisNotion.js';
 
 var sampleAnalysis = {
   video_id: 'vid_1',
@@ -81,4 +81,39 @@ test('computeChannelBaseline returns null when no row has views', () => {
 test('buildPerformanceContext surfaces views, hook rate, comments, and the channel baseline', () => {
   var ctx = buildPerformanceContext({ views: 500, hookRate: 0.42, comments: 12 }, { avg_views: 300, sample_size: 10 });
   assert.deepEqual(ctx, { views: 500, yt_hook_rate: 0.42, comments: 12, channel_baseline: { avg_views: 300, sample_size: 10 } });
+});
+
+test('sortForAnalysis puts today\'s video(s) first regardless of view count', () => {
+  var rows = [
+    { pageId: 'old-high-views', postDate: '2026-08-01', views: 9000 },
+    { pageId: 'today-low-views', postDate: '2026-08-09', views: 10 }
+  ];
+  var sorted = sortForAnalysis(rows, '2026-08-09');
+  assert.deepEqual(sorted.map((r) => r.pageId), ['today-low-views', 'old-high-views']);
+});
+
+test('sortForAnalysis orders the backlog (non-today rows) by views descending', () => {
+  var rows = [
+    { pageId: 'low', postDate: '2026-08-01', views: 100 },
+    { pageId: 'high', postDate: '2026-08-02', views: 9000 },
+    { pageId: 'mid', postDate: '2026-08-03', views: 500 }
+  ];
+  var sorted = sortForAnalysis(rows, '2026-08-09');
+  assert.deepEqual(sorted.map((r) => r.pageId), ['high', 'mid', 'low']);
+});
+
+test('sortForAnalysis treats missing views as lowest priority, not highest', () => {
+  var rows = [
+    { pageId: 'no-views', postDate: '2026-08-01', views: null },
+    { pageId: 'some-views', postDate: '2026-08-02', views: 1 }
+  ];
+  var sorted = sortForAnalysis(rows, '2026-08-09');
+  assert.deepEqual(sorted.map((r) => r.pageId), ['some-views', 'no-views']);
+});
+
+test('sortForAnalysis does not mutate the input array', () => {
+  var rows = [{ pageId: 'a', postDate: '2026-08-01', views: 1 }, { pageId: 'b', postDate: '2026-08-09', views: 2 }];
+  var original = rows.slice();
+  sortForAnalysis(rows, '2026-08-09');
+  assert.deepEqual(rows, original);
 });
