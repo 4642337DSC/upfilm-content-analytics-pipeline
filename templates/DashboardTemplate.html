@@ -689,6 +689,20 @@
   .transcript-check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .transcript-x { color: var(--muted); font-size: 12px; }
 
+  /* ---------- pipeline-status ticks (Gemini extracted / Claude scored) ---------- */
+  tbody td.status-tick-cell { text-align: center; }
+  .status-tick {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--good) 45%, transparent);
+    background: color-mix(in srgb, var(--good) 12%, transparent);
+    color: var(--good);
+    font-size: 13px;
+    line-height: 1;
+  }
+  .status-cross { color: var(--muted); font-size: 12px; }
+
   /* ---------- transcript modal ---------- */
   .transcript-modal {
     position: fixed; inset: 0;
@@ -1168,7 +1182,10 @@
   var RAW = /*__RAW_DATA__*/;
 
   var DATA = RAW.map(function (r) {
-    return { name: r[0], cod: r[1], yt: r[2], fb: r[3], ig: r[4], tt: r[5], date: r[6], link: r[7], transcript: r[8], thumb: r[9] };
+    return {
+      name: r[0], cod: r[1], yt: r[2], fb: r[3], ig: r[4], tt: r[5], date: r[6], link: r[7], transcript: r[8], thumb: r[9],
+      geminiExtracted: !!r[10], claudeScored: !!r[11]
+    };
   });
   var DATA_BY_COD = {};
   DATA.forEach(function (r) { DATA_BY_COD[r.cod] = r; });
@@ -2031,7 +2048,9 @@
     { key: "fb", label: "Facebook", sortable: true },
     { key: "total", label: "Total", sortable: true },
     { key: "link", label: "Link", sortable: true },
-    { key: "transcript", label: "Transcript", sortable: true }
+    { key: "transcript", label: "Transcript", sortable: true },
+    { key: "geminiExtracted", label: "Gemini", sortable: true },
+    { key: "claudeScored", label: "Claude", sortable: true }
   ];
 
   function renderTheadOnce() {
@@ -2074,6 +2093,30 @@
       }
       tr.appendChild(th);
     });
+  }
+
+  // Non-interactive version of the Transcript column's ✓/✕ pattern - status
+  // is read straight off the row (geminiExtracted/claudeScored, appended by
+  // fetchDashboardRows in src/dashboard.js after the Video Analysis DB join)
+  // rather than opening anything on click, so the row's own click handler
+  // (open video detail) still fires normally for these cells.
+  function buildStatusTickCell(done, doneLabel, notDoneLabel) {
+    var td = document.createElement("td");
+    td.className = "status-tick-cell";
+    if (done) {
+      var tick = document.createElement("span");
+      tick.className = "status-tick";
+      tick.textContent = "✓";
+      tick.setAttribute("aria-label", doneLabel);
+      td.appendChild(tick);
+    } else {
+      var cross = document.createElement("span");
+      cross.className = "status-cross";
+      cross.textContent = "✕";
+      cross.setAttribute("aria-label", notDoneLabel);
+      td.appendChild(cross);
+    }
+    return td;
   }
 
   function renderTable() {
@@ -2204,9 +2247,12 @@
         tdTranscript.appendChild(tX);
       }
 
+      var tdGemini = buildStatusTickCell(r.geminiExtracted, "Gemini extraction", "Not yet extracted by Gemini");
+      var tdClaude = buildStatusTickCell(r.claudeScored, "Claude scoring", "Not yet scored by Claude");
+
       tr.appendChild(tdThumb); tr.appendChild(tdName); tr.appendChild(tdDate); tr.appendChild(tdYt);
       tr.appendChild(tdTt); tr.appendChild(tdIg); tr.appendChild(tdFb); tr.appendChild(tdTotal);
-      tr.appendChild(tdLink); tr.appendChild(tdTranscript);
+      tr.appendChild(tdLink); tr.appendChild(tdTranscript); tr.appendChild(tdGemini); tr.appendChild(tdClaude);
       tr.setAttribute("tabindex", "0");
       tr.setAttribute("role", "button");
       tr.setAttribute("aria-label", "View details for " + r.name.trim());

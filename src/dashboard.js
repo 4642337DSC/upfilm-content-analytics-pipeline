@@ -111,7 +111,16 @@ export function claudeScoresOrNull(props) {
 // and keys the result by the linked Video page's id, rather than querying
 // per-video - the DB is small enough (one row per analyzed video) that a
 // single full scan is simpler and cheaper than N relation lookups.
-export async function fetchClaudeAnalysisByVideoPageId(cfg) {
+//
+// A row only ever gets created once Gemini's Stage 1 extraction has run
+// (both createDraftAnalysis and createFullAnalysis in videoAnalysisNotion.js
+// always write 'Raw Extraction' up front) - so a videoPageId simply being a
+// key in this map means "Gemini extracted it", independent of whether
+// Claude has scored it yet. The value is null for extracted-but-not-yet-
+// scored rows and the scores object once Claude has run, so callers can
+// tell "not extracted at all" (key absent) apart from "extracted, not
+// scored" (key present, value null) apart from "fully scored" (value set).
+export async function fetchVideoAnalysisByVideoPageId(cfg) {
   var map = {};
   if (!cfg.VIDEO_ANALYSIS_DATABASE_ID) return map;
   var cursor = null;
@@ -127,8 +136,7 @@ export async function fetchClaudeAnalysisByVideoPageId(cfg) {
       var props = page.properties;
       var relation = props['Video'] && props['Video'].relation;
       var videoPageId = relation && relation[0] ? relation[0].id : null;
-      var scores = claudeScoresOrNull(props);
-      if (videoPageId && scores) map[videoPageId] = scores;
+      if (videoPageId) map[videoPageId] = claudeScoresOrNull(props);
     });
     cursor = data.has_more ? data.next_cursor : null;
   } while (cursor);
@@ -139,6 +147,7 @@ export async function fetchDashboardRows(cfg, thumbMap) {
   var out = [];
   var details = {};
   var pageIdByCod = {};
+  var rowByCod = {};
   var cursor = null;
   do {
     var payload = {
@@ -155,16 +164,28 @@ export async function fetchDashboardRows(cfg, thumbMap) {
         if (row[1]) {
           details[row[1]] = buildVideoDetail(page);
           pageIdByCod[row[1]] = page.id;
+          rowByCod[row[1]] = row;
         }
       }
     });
     cursor = data.has_more ? data.next_cursor : null;
   } while (cursor);
 
-  var claudeByPageId = await fetchClaudeAnalysisByVideoPageId(cfg);
+  // Appended onto the fixed 10-element row (rather than folded into
+  // buildDashboardRow) since these two flags depend on the Video Analysis
+  // DB, which is only fetched here, after every dashboard row already
+  // exists - same "row[1]" cod-matching this function already does for
+  // details/pageIdByCod above. Every row gets both flags (true/false, not
+  // just present-when-true) so the template's fixed-position RAW array
+  // indexing stays reliable for every row.
+  var analysisByPageId = await fetchVideoAnalysisByVideoPageId(cfg);
   Object.keys(pageIdByCod).forEach(function (cod) {
-    var claude = claudeByPageId[pageIdByCod[cod]];
+    var pageId = pageIdByCod[cod];
+    var geminiExtracted = Object.prototype.hasOwnProperty.call(analysisByPageId, pageId);
+    details[cod].geminiExtracted = geminiExtracted;
+    var claude = analysisByPageId[pageId];
     if (claude) details[cod].claude = claude;
+    rowByCod[cod].push(geminiExtracted, !!claude);
   });
 
   out.sort(function (a, b) { return a[6] < b[6] ? -1 : a[6] > b[6] ? 1 : 0; }); // ascending by post date
