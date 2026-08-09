@@ -67,6 +67,18 @@ export function sortForAnalysis(rows, today) {
   });
 }
 
+// Inclusive YYYY-MM-DD range filter for a one-off backfill (see
+// src/videoAnalysisPipeline.js's --from/--to) - string comparison is safe
+// since postDate is always an ISO YYYY-MM-DD from Notion's date property.
+export function filterByDateRange(rows, from, to) {
+  return rows.filter(function (row) {
+    if (!row.postDate) return false;
+    if (from && row.postDate < from) return false;
+    if (to && row.postDate > to) return false;
+    return true;
+  });
+}
+
 export async function fetchVideosNeedingAnalysis(cfg, pipelineVersion, allRows) {
   var rows = allRows || await fetchAllVideoRows(cfg);
   var analysisRows = await queryAll(cfg, cfg.VIDEO_ANALYSIS_DATABASE_ID, {

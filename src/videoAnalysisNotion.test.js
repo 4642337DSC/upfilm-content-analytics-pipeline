@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAnalysisProps, buildExtractionOnlyProps, buildPerformanceContext, computeChannelBaseline, sortForAnalysis } from './videoAnalysisNotion.js';
+import { buildAnalysisProps, buildExtractionOnlyProps, buildPerformanceContext, computeChannelBaseline, filterByDateRange, sortForAnalysis } from './videoAnalysisNotion.js';
 
 var sampleAnalysis = {
   video_id: 'vid_1',
@@ -116,4 +116,26 @@ test('sortForAnalysis does not mutate the input array', () => {
   var original = rows.slice();
   sortForAnalysis(rows, '2026-08-09');
   assert.deepEqual(rows, original);
+});
+
+test('filterByDateRange keeps only rows with postDate inside the inclusive [from, to] range', () => {
+  var rows = [
+    { pageId: 'june', postDate: '2026-06-30' },
+    { pageId: 'july-start', postDate: '2026-07-01' },
+    { pageId: 'august-end', postDate: '2026-08-31' },
+    { pageId: 'september', postDate: '2026-09-01' }
+  ];
+  var filtered = filterByDateRange(rows, '2026-07-01', '2026-08-31');
+  assert.deepEqual(filtered.map((r) => r.pageId), ['july-start', 'august-end']);
+});
+
+test('filterByDateRange drops rows with no postDate', () => {
+  var rows = [{ pageId: 'no-date' }, { pageId: 'dated', postDate: '2026-07-15' }];
+  assert.deepEqual(filterByDateRange(rows, '2026-07-01', '2026-08-31').map((r) => r.pageId), ['dated']);
+});
+
+test('filterByDateRange treats a missing from or to as an open bound', () => {
+  var rows = [{ pageId: 'old', postDate: '2020-01-01' }, { pageId: 'new', postDate: '2030-01-01' }];
+  assert.deepEqual(filterByDateRange(rows, '2025-01-01', undefined).map((r) => r.pageId), ['new']);
+  assert.deepEqual(filterByDateRange(rows, undefined, '2025-01-01').map((r) => r.pageId), ['old']);
 });

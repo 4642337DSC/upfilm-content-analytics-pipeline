@@ -6,6 +6,7 @@ import {
   computeChannelBaseline,
   fetchAllVideoRows,
   fetchVideosNeedingAnalysis,
+  filterByDateRange,
   writeAnalysisResult,
   writeExtractionOnly
 } from './videoAnalysisNotion.js';
@@ -28,6 +29,7 @@ export async function runPipeline(options) {
   var allRows = await fetchAllVideoRows(cfg);
   var channelBaseline = computeChannelBaseline(allRows);
   var pending = await fetchVideosNeedingAnalysis(cfg, cfg.PIPELINE_VERSION, allRows);
+  if (options.from || options.to) pending = filterByDateRange(pending, options.from, options.to);
   if (options.limit) pending = pending.slice(0, options.limit);
 
   console.log('Video analysis pipeline (' + cfg.PIPELINE_VERSION + '): ' + pending.length + ' video(s) to process.');
@@ -91,6 +93,7 @@ export async function runExtraction(options) {
 
   var allRows = await fetchAllVideoRows(cfg);
   var pending = await fetchVideosNeedingAnalysis(cfg, cfg.PIPELINE_VERSION, allRows);
+  if (options.from || options.to) pending = filterByDateRange(pending, options.from, options.to);
   if (options.limit) pending = pending.slice(0, options.limit);
 
   console.log('Video analysis extraction (' + cfg.PIPELINE_VERSION + '): ' + pending.length + ' video(s) to process.');
@@ -132,11 +135,16 @@ export async function runExtraction(options) {
   return { succeeded: succeeded, failed: failed };
 }
 
+function argValue(flag) {
+  var arg = process.argv.find(function (a) { return a.startsWith(flag + '='); });
+  return arg ? arg.slice(flag.length + 1) : undefined;
+}
+
 if (import.meta.url === 'file://' + process.argv[1]) {
-  var limitArg = process.argv.find(function (a) { return a.startsWith('--limit='); });
-  var limit = limitArg ? parseInt(limitArg.split('=')[1], 10) : undefined;
+  var limitArg = argValue('--limit');
+  var limit = limitArg ? parseInt(limitArg, 10) : undefined;
   var run = process.argv.includes('--extract-only') ? runExtraction : runPipeline;
-  run({ limit: limit }).then(function (result) {
+  run({ limit: limit, from: argValue('--from'), to: argValue('--to') }).then(function (result) {
     if (result.failed.length) process.exitCode = 1;
   });
 }

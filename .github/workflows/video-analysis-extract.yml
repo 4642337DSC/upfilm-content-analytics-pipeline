@@ -6,11 +6,29 @@ on:
     # UTC), so it isn't fighting that job for the same Notion integration's
     # rate limit.
     - cron: '0 5 * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      from:
+        description: 'Backfill only: process videos posted on/after this date (YYYY-MM-DD). Leave empty for the normal incremental run.'
+        required: false
+        type: string
+      to:
+        description: 'Backfill only: process videos posted on/before this date (YYYY-MM-DD). Leave empty for the normal incremental run.'
+        required: false
+        type: string
+      limit:
+        description: 'Max videos to process per client in this run.'
+        required: false
+        type: string
+        default: '10'
 
 jobs:
   extract:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        client: [isogreen, miradex]
     steps:
       - uses: actions/checkout@v4
 
@@ -20,22 +38,26 @@ jobs:
 
       - run: npm install
 
-      # Isogreen only for now - the Video DB property names this pipeline
-      # reads (YouTube URL, Total Views, YT Hook Rate, YT Comments) were
-      # checked against Isogreen's real schema, not Miradex's. Add a
-      # Miradex leg here (with its own field-name env vars, same pattern as
-      # sync.yml's client matrix) once Miradex's Video DB schema has
-      # actually been checked and its own Video Analysis DB exists.
       # --limit caps how many Gemini calls one run can make, so a large
       # backlog can't blow through a free-tier daily quota (or, if billing
       # is linked, run up a bill) in a single scheduled run - the leftover
-      # videos just get picked up by tomorrow's run. 10/day is a
-      # conservative starting point; tune it against the actual free-tier
-      # requests-per-day limit shown for your key at https://ai.studio/projects.
-      - name: Run Stage 1 extraction (Isogreen)
+      # videos just get picked up by tomorrow's run (or the next --from/--to
+      # backfill). 10/client/day is a conservative starting point; tune it
+      # against the actual free-tier requests-per-day limit shown for your
+      # key at https://ai.studio/projects. --from/--to (workflow_dispatch
+      # inputs, empty on the daily schedule) scope a manual run to a date
+      # range instead of "whatever's oldest/highest-view in the backlog".
+      #
+      # Miradex's Video DB is "Short Form" - its view-total formula is
+      # named "Suma", not "Total Views" like Isogreen's, hence the
+      # per-client VIEWS_FIELD_NAME override. Its Video Analysis DB
+      # (MIRADEX_VIDEO_ANALYSIS_DATABASE_ID) mirrors Isogreen's schema
+      # exactly (same score/notes/raw-extraction properties).
+      - name: Run Stage 1 extraction
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NOTION_DATABASE_ID: ${{ secrets.ISOGREEN_NOTION_DATABASE_ID }}
-          VIDEO_ANALYSIS_DATABASE_ID: ${{ secrets.ISOGREEN_VIDEO_ANALYSIS_DATABASE_ID }}
-        run: npm run analyze:extract -- --limit=10
+          NOTION_DATABASE_ID: ${{ secrets[format('{0}_NOTION_DATABASE_ID', matrix.client)] }}
+          VIDEO_ANALYSIS_DATABASE_ID: ${{ secrets[format('{0}_VIDEO_ANALYSIS_DATABASE_ID', matrix.client)] }}
+          VIEWS_FIELD_NAME: ${{ matrix.client == 'miradex' && 'Suma' || 'Total Views' }}
+        run: npm run analyze:extract -- --limit=${{ github.event.inputs.limit || '10' }} --from=${{ github.event.inputs.from }} --to=${{ github.event.inputs.to }}
