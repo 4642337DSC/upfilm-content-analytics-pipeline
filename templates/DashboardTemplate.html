@@ -2729,9 +2729,19 @@
   function buildRetentionPanel(detail) {
     var panel = document.createElement("div");
     var retentionSeries = [];
+    var fbCapped = false;
     if (detail.fb && detail.fb.retention) {
       var fbPoints = toRatioSeries(detail.fb.retention, detail.durationS);
-      if (fbPoints) retentionSeries.push({ platform: "Facebook", color: "var(--p-fb)", points: fbPoints });
+      if (fbPoints) {
+        retentionSeries.push({ platform: "Facebook", color: "var(--p-fb)", points: fbPoints });
+        // Meta's post_video_retention_graph only ever returns retention data
+        // for a video's first ~40 seconds, regardless of how long the video
+        // actually is - so on anything longer than that, Facebook's line
+        // legitimately stops partway across the chart. Surface that
+        // explicitly rather than leaving it looking like missing/broken data.
+        var fbMaxRatio = Math.max.apply(null, Object.keys(fbPoints).map(parseFloat));
+        if (detail.durationS > 41 && fbMaxRatio < 0.99) fbCapped = true;
+      }
     }
     if (detail.yt && detail.yt.retention) {
       retentionSeries.push({ platform: "YouTube", color: "var(--p-yt)", points: detail.yt.retention });
@@ -2744,7 +2754,8 @@
 
     var note = document.createElement("div");
     note.className = "detail-chart-note";
-    note.textContent = "Audience still watching, by % of video elapsed. YouTube can exceed 100% from rewatches.";
+    note.textContent = "Audience still watching, by % of video elapsed. YouTube can exceed 100% from rewatches." +
+      (fbCapped ? " Facebook only reports retention for a video's first ~40s, so its line ends early here." : "");
     panel.appendChild(note);
 
     var chartHost = document.createElement("div");
