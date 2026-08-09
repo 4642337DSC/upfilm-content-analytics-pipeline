@@ -1170,6 +1170,22 @@
   var DATA = RAW.map(function (r) {
     return { name: r[0], cod: r[1], yt: r[2], fb: r[3], ig: r[4], tt: r[5], date: r[6], link: r[7], transcript: r[8], thumb: r[9] };
   });
+  var DATA_BY_COD = {};
+  DATA.forEach(function (r) { DATA_BY_COD[r.cod] = r; });
+
+  // Hook rate / retention / avg % watched / avg watch time (unit "percent"
+  // or "seconds" below) are per-viewer averages, not plain totals - on a
+  // platform with only a handful of views, a couple of viewers replaying a
+  // looping Short (YouTube Shorts autoplay-loop) can push "avg % watched"
+  // past 600%, which then badly skews any channel-wide median/average
+  // computed from it. Views/likes/comments/shares/saves (unit "count") are
+  // plain totals, not averages, so they aren't vulnerable the same way and
+  // stay included regardless of view count. Used by both computeChannelMedians
+  // (the popup's delta badges) and computeChannelStats (the benchmarks
+  // table) - the per-video popup itself still shows the real (if
+  // wild-looking) number for that one video; this only keeps it out of
+  // channel-wide calculations.
+  var MIN_VIEWS_FOR_RATIO_STATS = 100;
 
   // Per-video engagement/hook-rate/watch-time detail, keyed by "Cod" - powers
   // the click-through detail popup (see openVideoDetail below). Only the
@@ -2323,8 +2339,11 @@
     });
     Object.keys(VIDEO_DETAILS).forEach(function (cod) {
       var detail = VIDEO_DETAILS[cod];
+      var row = DATA_BY_COD[cod];
       Object.keys(DETAIL_METRICS).forEach(function (platformKey) {
+        var views = row ? row[platformKey] : null;
         DETAIL_METRICS[platformKey].forEach(function (spec) {
+          if (spec.unit !== "count" && (views || 0) < MIN_VIEWS_FOR_RATIO_STATS) return;
           var v = spec.value(detail);
           if (typeof v === "number") valuesByPlatform[platformKey][spec.label].push(v);
         });
@@ -2380,9 +2399,6 @@
     tt: { "Likes": "likes", "Comments": "comments", "Shares": "shares", "Saves": "saves" }
   };
 
-  var DATA_BY_COD = {};
-  DATA.forEach(function (r) { DATA_BY_COD[r.cod] = r; });
-
   function computeChannelStats() {
     var stats = {};
     PLATFORMS.forEach(function (p) {
@@ -2394,7 +2410,10 @@
       });
       var byKey = {};
       specs.forEach(function (spec) {
-        var values = DATA.map(function (r) { return spec.value(r.cod); }).filter(function (v) { return typeof v === "number"; });
+        var values = DATA.map(function (r) {
+          if (spec.unit !== "count" && (r[p.key] || 0) < MIN_VIEWS_FOR_RATIO_STATS) return null;
+          return spec.value(r.cod);
+        }).filter(function (v) { return typeof v === "number"; });
         byKey[spec.key] = { fmt: spec.fmt, unit: spec.unit, median: median(values), mean: mean(values), n: values.length };
       });
       stats[p.key] = byKey;
