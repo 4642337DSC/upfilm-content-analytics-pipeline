@@ -26,10 +26,16 @@ jobs:
       # Miradex leg here (with its own field-name env vars, same pattern as
       # sync.yml's client matrix) once Miradex's Video DB schema has
       # actually been checked and its own Video Analysis DB exists.
+      # --limit caps how many Gemini calls one run can make, so a large
+      # backlog can't blow through a free-tier daily quota (or, if billing
+      # is linked, run up a bill) in a single scheduled run - the leftover
+      # videos just get picked up by tomorrow's run. 10/day is a
+      # conservative starting point; tune it against the actual free-tier
+      # requests-per-day limit shown for your key at https://ai.studio/projects.
       - name: Run Stage 1 extraction (Isogreen)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.ISOGREEN_NOTION_DATABASE_ID }}
           VIDEO_ANALYSIS_DATABASE_ID: ${{ secrets.ISOGREEN_VIDEO_ANALYSIS_DATABASE_ID }}
-        run: npm run analyze:extract
+        run: npm run analyze:extract -- --limit=10

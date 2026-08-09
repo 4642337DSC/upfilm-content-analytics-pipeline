@@ -60,6 +60,15 @@ async function callGenerateContent(cfg, youtubeUrl, videoId) {
     GEMINI_API_BASE + '/v1beta/models/' + GEMINI_MODEL + ':generateContent?key=' + cfg.GEMINI_API_KEY,
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
   );
+  // 429 here means free-tier quota (or, if billing is linked, prepaid
+  // credits) is exhausted - every remaining video in this run would fail
+  // the same way, so callers should stop the run rather than burn through
+  // the rest of the backlog one failed call at a time.
+  if (res.status === 429) {
+    var quotaErr = new Error('Gemini quota/billing exhausted (429): ' + res.text);
+    quotaErr.quotaExhausted = true;
+    throw quotaErr;
+  }
   var data = res.json();
   if (!data || !data.candidates || !data.candidates[0]) {
     throw new Error('Gemini generateContent returned no candidates: ' + res.text);

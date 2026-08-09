@@ -65,6 +65,10 @@ export async function runPipeline(options) {
     } catch (err) {
       console.log('[' + videoId + '] FAILED: ' + (err && err.message ? err.message : err));
       failed.push({ videoId: videoId, name: row.name, error: err && err.message ? err.message : String(err) });
+      if (err && err.quotaExhausted) {
+        console.log('Gemini quota/billing exhausted - stopping run early instead of retrying it against every remaining video.');
+        break;
+      }
     }
   }
 
@@ -114,6 +118,10 @@ export async function runExtraction(options) {
     } catch (err) {
       console.log('[' + videoId + '] FAILED: ' + (err && err.message ? err.message : err));
       failed.push({ videoId: videoId, name: row.name, error: err && err.message ? err.message : String(err) });
+      if (err && err.quotaExhausted) {
+        console.log('Gemini quota/billing exhausted - stopping run early instead of retrying it against every remaining video.');
+        break;
+      }
     }
   }
 
