@@ -12,6 +12,7 @@ var sampleAnalysis = {
     cta: { score: 4, reasoning: 'r', evidence_timestamps: [] }
   },
   overall_notes: 'notable stuff',
+  performance_notes: 'underperformed because the CTA reads as a cut-off ending',
   reusable_pattern: 'quick pattern interrupt at 0-1s'
 };
 
@@ -33,6 +34,8 @@ test('buildAnalysisProps writes all five scores, clears Needs Scoring, and tags 
   assert.equal(props['Pipeline Version'].select.name, 'v2-gemini-claude');
   assert.equal(props['Video'].relation[0].id, 'page-1');
   assert.equal(props['Name'].title[0].text.content, 'My Video');
+  assert.equal(props['Overall Notes'].rich_text[0].text.content, 'notable stuff');
+  assert.equal(props['Performance Notes'].rich_text[0].text.content, 'underperformed because the CTA reads as a cut-off ending');
 });
 
 test('buildAnalysisProps falls back to video_id, then pageId, for the title when no name is given', () => {

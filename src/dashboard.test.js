@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDashboardRow, renderClientLinks, buildVideoDetail } from './dashboard.js';
+import { buildDashboardRow, renderClientLinks, buildVideoDetail, claudeScoresOrNull } from './dashboard.js';
 
 function page(props) {
   return { properties: props };
@@ -66,6 +66,38 @@ test('buildVideoDetail returns null hook when "Written Hook" is absent', () => {
   var detail = buildVideoDetail(p);
 
   assert.equal(detail.hook, null);
+});
+
+test('claudeScoresOrNull reads all five scores plus notes/performance/pattern', () => {
+  var p = {
+    'Hook Score': { number: 7 },
+    'Structure Score': { number: 8 },
+    'Format Score': { number: 6 },
+    'Pacing Score': { number: 5 },
+    'CTA Score': { number: 2 },
+    'Overall Notes': { rich_text: [{ plain_text: 'Strong hook, weak CTA.' }] },
+    'Performance Notes': { rich_text: [{ plain_text: 'Underperformed baseline mainly due to the missing CTA.' }] },
+    'Reusable Pattern': { rich_text: [{ plain_text: 'Open with a contrarian claim.' }] }
+  };
+
+  assert.deepEqual(claudeScoresOrNull(p), {
+    hookScore: 7, structureScore: 8, formatScore: 6, pacingScore: 5, ctaScore: 2,
+    overallNotes: 'Strong hook, weak CTA.',
+    performanceNotes: 'Underperformed baseline mainly due to the missing CTA.',
+    reusablePattern: 'Open with a contrarian claim.'
+  });
+});
+
+test('claudeScoresOrNull returns null when the row has not been scored yet (no Hook Score)', () => {
+  assert.equal(claudeScoresOrNull({}), null);
+});
+
+test('claudeScoresOrNull falls back to null notes/performance/pattern when those rich_text properties are absent', () => {
+  var p = { 'Hook Score': { number: 4 } };
+  var scores = claudeScoresOrNull(p);
+  assert.equal(scores.overallNotes, null);
+  assert.equal(scores.performanceNotes, null);
+  assert.equal(scores.reusablePattern, null);
 });
 
 test('renderClientLinks renders one link per slug, sorted, label uppercased', () => {

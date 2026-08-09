@@ -156,6 +156,7 @@ export function buildAnalysisProps(options) {
     'Pacing Score': { number: scores.pacing.score },
     'CTA Score': { number: scores.cta.score },
     'Overall Notes': { rich_text: chunkRichText(options.analysis.overall_notes || '') },
+    'Performance Notes': { rich_text: chunkRichText(options.analysis.performance_notes || '') },
     'Reusable Pattern': { rich_text: chunkRichText(options.analysis.reusable_pattern || '') },
     'Raw Extraction': { rich_text: chunkRichText(JSON.stringify(options.rawExtraction)) },
     'Needs Scoring': { checkbox: false },
