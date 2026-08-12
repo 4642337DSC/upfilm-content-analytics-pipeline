@@ -607,6 +607,19 @@
      viewport - auto (not visible) keeps the horizontal scroll contained to
      this box instead of blowing out the whole page's layout. */
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: 10px; }
+  /* Desktop (above the file's existing 860px mobile breakpoint): the
+     scrollbar track/thumb chrome is hidden, not scrolling itself - a
+     desktop viewport is usually wide enough that this table never actually
+     needs to scroll, and when it does (a lot of columns on a narrower
+     laptop), drag/trackpad/shift+wheel scrolling still works without the
+     visible bar. Left alone below 860px - a touch scrollbar is expected
+     mobile UI, and hiding it there would remove the user's only visual cue
+     that the table extends past the screen. Applies to every .table-scroll
+     on the page (both "Every short" and "Every Long"), not just one. */
+  @media (min-width: 861px) {
+    .table-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+    .table-scroll::-webkit-scrollbar { display: none; }
+  }
   table { min-width: 720px; }
   table { border-collapse: collapse; width: 100%; table-layout: auto; }
   thead th {
@@ -1137,7 +1150,7 @@
 
   <section class="card" id="longFormSection" style="display:none">
     <div class="card-head">
-      <div class="card-title">Long form</div>
+      <div class="card-title">Every Long</div>
       <div class="card-note">Sortable — click a column header</div>
     </div>
     <div class="table-scroll">
@@ -1148,6 +1161,7 @@
         <tbody id="longFormTbody"></tbody>
       </table>
     </div>
+    <div class="table-more" id="longFormTableMore"></div>
   </section>
 
   <footer>
@@ -2331,7 +2345,8 @@
     { key: "hookRate", label: "Retention @30s" },
     { key: "link", label: "" }
   ];
-  var longFormState = { sortKey: "date", sortDir: "desc" };
+  var longFormState = { sortKey: "date", sortDir: "desc", tableLimit: 5 };
+  var LONG_FORM_PAGE_STEPS = [5, 10, Infinity]; // initial view, "Show more" (+5), "Show all"
 
   function fmtDuration(s) {
     if (s === null || s === undefined) return "—";
@@ -2387,9 +2402,12 @@
       return 0;
     });
 
+    longFormRenderTableMore(rows.length);
+    var visible = rows.slice(0, longFormState.tableLimit);
+
     var tbody = document.getElementById("longFormTbody");
     tbody.textContent = "";
-    rows.forEach(function (r) {
+    visible.forEach(function (r) {
       var tr = document.createElement("tr");
 
       var tdThumb = document.createElement("td");
@@ -2397,8 +2415,19 @@
       tdThumb.appendChild(placeholderTile(r, "sm"));
       tr.appendChild(tdThumb);
 
+      var tdName = document.createElement("td");
+      tdName.className = "name-cell";
+      tdName.textContent = r.name;
+      tdName.title = r.name;
+      tr.appendChild(tdName);
+
+      var tdDate = document.createElement("td");
+      tdDate.className = "date-cell";
+      tdDate.textContent = fmtDate(r.date);
+      tr.appendChild(tdDate);
+
       [
-        r.name, fmtDate(r.date), fmtDuration(r.durationS), fmtFull(r.views),
+        fmtDuration(r.durationS), fmtFull(r.views),
         fmtFull(r.likes), fmtFull(r.comments), fmtPercent(r.avgWatchPct), fmtPercent(r.hookRate)
       ].forEach(function (text) {
         var td = document.createElement("td");
@@ -2406,17 +2435,42 @@
         tr.appendChild(td);
       });
       var tdLink = document.createElement("td");
+      tdLink.className = "link-cell";
       if (r.link) {
         var a = document.createElement("a");
         a.href = r.link; a.target = "_blank"; a.rel = "noopener noreferrer";
         a.textContent = "↗"; a.title = "Open video";
         tdLink.appendChild(a);
       } else {
+        tdLink.className += " muted-cell";
         tdLink.textContent = "—";
       }
       tr.appendChild(tdLink);
       tbody.appendChild(tr);
     });
+  }
+
+  // "Show more" (+5) then "Show all" - same LONG_FORM_PAGE_STEPS-walking
+  // pattern as renderTableMore above, own button/wrap/state so the two
+  // tables' pagination never interferes with each other.
+  function longFormRenderTableMore(totalCount) {
+    var wrap = document.getElementById("longFormTableMore");
+    wrap.textContent = "";
+    if (longFormState.tableLimit >= totalCount) return;
+
+    var stepIdx = LONG_FORM_PAGE_STEPS.indexOf(longFormState.tableLimit);
+    var nextLimit = LONG_FORM_PAGE_STEPS[stepIdx + 1];
+    if (nextLimit === undefined) return;
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "show-more-btn";
+    btn.textContent = nextLimit === Infinity ? "Show all" : "Show more";
+    btn.addEventListener("click", function () {
+      longFormState.tableLimit = nextLimit;
+      longFormRenderRows();
+    });
+    wrap.appendChild(btn);
   }
 
   function renderLongForm() {

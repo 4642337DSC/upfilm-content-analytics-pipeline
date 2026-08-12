@@ -57,6 +57,20 @@ export function getConfig() {
     RETENTION_WINDOW_SECONDS: process.env.RETENTION_WINDOW_SECONDS ? Number(process.env.RETENTION_WINDOW_SECONDS) : 3,
     RETENTION_WINDOW_FIELD_NAME: process.env.RETENTION_WINDOW_FIELD_NAME || 'YT Retention @3s',
 
+    // Rejects a YouTube match (cached or fresh) whose real duration comes in
+    // under this many seconds - unset (0/falsy) means no filtering, which is
+    // every existing client's behavior. Long Form's sync pass sets this to
+    // 60: Long Form rows have no "Text" property to disambiguate same-day
+    // candidates (see matchContent in notion.js), so a same-day Short can
+    // otherwise get picked as a false match via the date-only fallback.
+    MIN_VIDEO_DURATION_SECONDS: process.env.MIN_VIDEO_DURATION_SECONDS ? Number(process.env.MIN_VIDEO_DURATION_SECONDS) : 0,
+
+    // When true, every synced row's Notion "Name" (title property) gets
+    // overwritten with the matched video's real, currently-published
+    // YouTube title - off by default (Shorts' internal working titles are
+    // deliberately left alone); Long Form's sync pass turns this on.
+    SYNC_TITLE_FROM_YOUTUBE: process.env.SYNC_TITLE_FROM_YOUTUBE === 'true',
+
     // --- Video analysis pipeline (Gemini extract -> Claude score -> Notion) ---
     GEMINI_API_KEY: process.env.GEMINI_API_KEY || null,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || null,

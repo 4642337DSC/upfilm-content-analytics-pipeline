@@ -83,7 +83,18 @@ export async function syncAllViews() {
       NOTION_DATABASE_ID: cfg.LONG_FORM_NOTION_DATABASE_ID,
       YT_FIELD_NAME: cfg.LONG_FORM_YT_FIELD_NAME,
       RETENTION_WINDOW_SECONDS: cfg.LONG_FORM_RETENTION_WINDOW_SECONDS,
-      RETENTION_WINDOW_FIELD_NAME: cfg.LONG_FORM_RETENTION_FIELD_NAME
+      RETENTION_WINDOW_FIELD_NAME: cfg.LONG_FORM_RETENTION_FIELD_NAME,
+      // Long Form rows have no "Text" property to disambiguate same-day
+      // candidates during matching (see matchContent's comment in
+      // notion.js) - without this, a same-day Short can get picked as a
+      // false match via the date-only fallback (confirmed live: 3 rows had
+      // silently matched to Shorts under a minute long). 60s is YouTube's
+      // own rough Shorts/regular-video boundary.
+      MIN_VIDEO_DURATION_SECONDS: 60,
+      // Internal working titles ("Vizita fabrica Novatik") drift far from
+      // what actually gets published - keep Notion's Name mirroring the
+      // real YouTube title instead.
+      SYNC_TITLE_FROM_YOUTUBE: true
     });
     try {
       var lfRows = await fetchNotionRows(lfCfg);

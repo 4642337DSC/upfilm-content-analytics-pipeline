@@ -50,6 +50,7 @@ export async function fetchAllYouTubeVideos(cfg) {
       videos.push({
         id: sn.resourceId.videoId,
         text: sn.description || sn.title || '',
+        title: sn.title || '',
         publishedAt: sn.publishedAt
       });
     });
@@ -176,6 +177,16 @@ export async function syncYouTube(cfg, rows) {
     // for Shorts, not anything wrong with these specific videos.
     var YT_HOOK_RATE_RELIABLE_FROM = '2025-03-31';
     var postDateReliable = !p.row.postDate || p.row.postDate >= YT_HOOK_RATE_RELIABLE_FROM;
+    // Applies to cached matches too (not just fresh ones from the plan
+    // above) - a cache entry can be a stale wrong-match from before this
+    // guard existed (a Short that happened to land within matchContent's
+    // date tolerance - Long Form rows have no "Text" property to
+    // disambiguate against, see matchContent's comment), and re-verifying
+    // duration here catches that on the very next sync, not just new
+    // matches. Long Form's sync pass sets this to 60s; Shorts leaves it
+    // unset (0), so this is a no-op for every existing caller.
+    if (cfg.MIN_VIDEO_DURATION_SECONDS && stat.duration < cfg.MIN_VIDEO_DURATION_SECONDS) continue;
+    var candidate = findById(videos, p.id);
     results.push({
       row: p.row, views: stat.views, duration: stat.duration, likes: stat.likes, comments: stat.comments,
       avgWatchTimeS: avgWatch.avgWatchTimeS, avgWatchPct: avgWatch.avgWatchPct,
@@ -184,7 +195,14 @@ export async function syncYouTube(cfg, rows) {
       retention: retentionData ? retentionData.retention : null,
       relativeRetentionPerformance: retentionData ? retentionData.relativeRetentionPerformance : null,
       isNewMatch: p.isNewMatch, method: p.method, score: p.score,
-      url: p.isNewMatch ? ('https://www.youtube.com/watch?v=' + p.id) : null
+      url: p.isNewMatch ? ('https://www.youtube.com/watch?v=' + p.id) : null,
+      // Only ever populated when the candidate is still present in this
+      // run's channel-upload fetch (always true for a fresh match; for a
+      // long-cached match it could in principle be missing if the video's
+      // publish date fell off fetchAllYouTubeVideos' page window, though in
+      // practice the uploads playlist returns full history) - null rather
+      // than a stale title is preferred when it can't be confirmed.
+      youtubeTitle: candidate ? candidate.title : null
     });
   }
 

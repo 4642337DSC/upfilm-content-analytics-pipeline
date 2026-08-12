@@ -60,3 +60,26 @@ test('buildUpdatePayloads writes the retention window to cfg.RETENTION_WINDOW_FI
 
   assert.deepEqual(payloads['page-1']['YT Retention @30s'], { number: 62 });
 });
+
+test('buildUpdatePayloads writes Name from youtubeTitle only when SYNC_TITLE_FROM_YOUTUBE is on', () => {
+  var row = { pageId: 'page-1' };
+  var yt = { results: [{ row: row, views: 100, youtubeTitle: 'Real Published Title' }] };
+
+  var onCfg = { YT_FIELD_NAME: 'YT Views', SYNC_TITLE_FROM_YOUTUBE: true };
+  var onPayloads = buildUpdatePayloads(onCfg, [row], yt, null, null, null);
+  assert.deepEqual(onPayloads['page-1']['Name'], { title: [{ text: { content: 'Real Published Title' } }] });
+
+  var offCfg = { YT_FIELD_NAME: 'YT Views', SYNC_TITLE_FROM_YOUTUBE: false };
+  var offPayloads = buildUpdatePayloads(offCfg, [row], yt, null, null, null);
+  assert.equal(offPayloads['page-1']['Name'], undefined);
+});
+
+test('buildUpdatePayloads leaves Name untouched when youtubeTitle is null even with sync enabled', () => {
+  var row = { pageId: 'page-1' };
+  var yt = { results: [{ row: row, views: 100, youtubeTitle: null }] };
+  var cfg = { YT_FIELD_NAME: 'YT Views', SYNC_TITLE_FROM_YOUTUBE: true };
+
+  var payloads = buildUpdatePayloads(cfg, [row], yt, null, null, null);
+
+  assert.equal(payloads['page-1']['Name'], undefined);
+});

@@ -349,6 +349,12 @@ export function buildUpdatePayloads(cfg, rows, yt, fb, ig, tt) {
     var props = entryFor(r.row);
     props[cfg.YT_FIELD_NAME] = { number: r.views };
     if (r.url) props['YouTube URL'] = { url: r.url };
+    // Off by default - see cfg.SYNC_TITLE_FROM_YOUTUBE's comment in
+    // config.js. Written every run a title is known (not just on a fresh
+    // match), so a video renamed on YouTube after the fact stays in sync.
+    if (cfg.SYNC_TITLE_FROM_YOUTUBE && r.youtubeTitle) {
+      props['Name'] = { title: [{ text: { content: r.youtubeTitle } }] };
+    }
     // Duration only needs one source since it's the same video everywhere -
     // YouTube is used since every row is matched there and it's a single
     // extra field on a call the sync already makes (see
