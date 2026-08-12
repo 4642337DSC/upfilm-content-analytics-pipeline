@@ -179,6 +179,44 @@ export async function fetchYouTubeAvgWatchStats(accessToken, videoIds) {
   return stats;
 }
 
+// Impressions (how many times the thumbnail was shown - home feed,
+// suggested, notifications; notably NOT search) + the fraction of those
+// that turned into a click. This measures a different moment than
+// engagedViews/retention above: impressions/CTR is "did the thumbnail and
+// title get the click" (before the video even starts), while hookRate and
+// the retention curve are "did they stay" (after the click). Kept as its
+// own call rather than folded into fetchYouTubeAvgWatchStats' metrics list
+// - the Analytics API sometimes rejects specific metric combinations
+// outright ("selected metrics ... are not supported together"), and
+// impressions/CTR wasn't confirmed compatible with that call's existing
+// set, so an isolated call means a problem here can't take down the
+// avg-watch-stats data too. Same batching/shape as that function.
+export async function fetchYouTubeImpressions(accessToken, videoIds) {
+  var unique = videoIds.filter(function (id, i) { return videoIds.indexOf(id) === i; });
+  var stats = {};
+  for (var i = 0; i < unique.length; i += 50) {
+    var batch = unique.slice(i, i + 50);
+    var url = 'https://youtubeanalytics.googleapis.com/v2/reports?' + new URLSearchParams({
+      ids: 'channel==MINE',
+      metrics: 'impressions,impressionsClickThroughRate',
+      dimensions: 'video',
+      filters: 'video==' + batch.join(','),
+      startDate: '2020-01-01',
+      endDate: isoDate(new Date())
+    }).toString();
+    var data = await fetchJson(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+    if (data.error) { console.log('YouTube impressions fetch failed: ' + JSON.stringify(data.error)); continue; }
+    (data.rows || []).forEach(function (row) {
+      // impressionsClickThroughRate comes back as a 0-1 fraction (documented
+      // API behavior, unlike averageViewPercentage above which is already a
+      // 0-100 percentage) - converted here so every "*Pct"/"*CTR" field this
+      // pipeline writes shares the same 0-100 scale.
+      stats[row[0]] = { impressions: row[1], impressionsCtr: typeof row[2] === 'number' ? Math.round(row[2] * 1000) / 10 : null };
+    });
+  }
+  return stats;
+}
+
 // Buckets fetchYouTubeDailyViews into calendar months, since oldestDate's
 // month through the current (partial) one - same shape as
 // syncInstagramMonthly/syncFacebookMonthly so it drops straight into

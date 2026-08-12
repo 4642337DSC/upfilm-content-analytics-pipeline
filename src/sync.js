@@ -94,7 +94,9 @@ export async function syncAllViews() {
       // Internal working titles ("Vizita fabrica Novatik") drift far from
       // what actually gets published - keep Notion's Name mirroring the
       // real YouTube title instead.
-      SYNC_TITLE_FROM_YOUTUBE: true
+      SYNC_TITLE_FROM_YOUTUBE: true,
+      IMPRESSIONS_FIELD_NAME: 'YT Impressions',
+      IMPRESSIONS_CTR_FIELD_NAME: 'YT Impressions CTR'
     });
     try {
       var lfRows = await fetchNotionRows(lfCfg);

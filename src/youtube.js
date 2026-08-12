@@ -1,6 +1,6 @@
 import { fetchJson } from './http.js';
 import { matchContent, buildPlatformReport, findById, daysApart } from './notion.js';
-import { fetchYouTubeVideoRetention, fetchYouTubeAvgWatchStats, getYouTubeAccessToken } from './youtubeAnalytics.js';
+import { fetchYouTubeVideoRetention, fetchYouTubeAvgWatchStats, fetchYouTubeImpressions, getYouTubeAccessToken } from './youtubeAnalytics.js';
 
 // A cached "YouTube URL" is normally trusted unconditionally (that's the
 // whole point of caching - skip re-matching every run). But a row's "Data
@@ -153,10 +153,12 @@ export async function syncYouTube(cfg, rows) {
   // fetchYouTubeVideoRetention's comment.
   var ytAnalyticsEnabled = !!(cfg.YOUTUBE_OAUTH_CLIENT_ID && cfg.YOUTUBE_OAUTH_CLIENT_SECRET && cfg.YOUTUBE_REFRESH_TOKEN);
   var avgWatchStats = {};
+  var impressionStats = {};
   var accessToken = null;
   if (ytAnalyticsEnabled) {
     accessToken = await getYouTubeAccessToken(cfg);
     avgWatchStats = await fetchYouTubeAvgWatchStats(accessToken, idsNeeded);
+    impressionStats = await fetchYouTubeImpressions(accessToken, idsNeeded);
   }
 
   var results = [];
@@ -164,6 +166,7 @@ export async function syncYouTube(cfg, rows) {
     var stat = stats[p.id];
     if (stat === undefined) continue;
     var avgWatch = avgWatchStats[p.id] || {};
+    var impressions = impressionStats[p.id] || {};
     // The one genuinely expensive call here (no batching available for
     // this dimension) - same cost pattern already accepted for Instagram's
     // per-media engagement fetch.
@@ -191,6 +194,7 @@ export async function syncYouTube(cfg, rows) {
       row: p.row, views: stat.views, duration: stat.duration, likes: stat.likes, comments: stat.comments,
       avgWatchTimeS: avgWatch.avgWatchTimeS, avgWatchPct: avgWatch.avgWatchPct,
       hookRate: postDateReliable ? avgWatch.hookRate : null,
+      impressions: impressions.impressions, impressionsCtr: impressions.impressionsCtr,
       retentionAtWindow: retentionData ? pickRetentionAtWindow(retentionData.retention, stat.duration, cfg.RETENTION_WINDOW_SECONDS) : null,
       retention: retentionData ? retentionData.retention : null,
       relativeRetentionPerformance: retentionData ? retentionData.relativeRetentionPerformance : null,

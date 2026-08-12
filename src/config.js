@@ -71,6 +71,15 @@ export function getConfig() {
     // deliberately left alone); Long Form's sync pass turns this on.
     SYNC_TITLE_FROM_YOUTUBE: process.env.SYNC_TITLE_FROM_YOUTUBE === 'true',
 
+    // Unset (null) by default - Isogreen's and Miradex's existing Short
+    // Form databases don't have these Notion properties yet, and writing to
+    // a property name Notion doesn't recognize fails that row's whole
+    // update. Long Form's sync pass points these at real property names it
+    // has (see fetchYouTubeImpressions in youtubeAnalytics.js for what the
+    // two metrics actually measure).
+    IMPRESSIONS_FIELD_NAME: process.env.IMPRESSIONS_FIELD_NAME || null,
+    IMPRESSIONS_CTR_FIELD_NAME: process.env.IMPRESSIONS_CTR_FIELD_NAME || null,
+
     // --- Video analysis pipeline (Gemini extract -> Claude score -> Notion) ---
     GEMINI_API_KEY: process.env.GEMINI_API_KEY || null,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || null,
