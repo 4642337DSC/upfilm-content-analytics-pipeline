@@ -344,8 +344,14 @@ export async function buildDashboard(cfg, thumbMap, outDir) {
   var followerSnapshots = await fetchDashboardFollowerSnapshots(cfg);
   // Empty array (not omitted) when disabled, so the template's embedded
   // `var LONG_FORM = ...;` is always valid JS/JSON for every client,
-  // including Isogreen, which has no Long Form database.
-  var longFormRows = await fetchLongFormRows(cfg);
+  // including Isogreen, which has no Long Form database. Caught locally
+  // (not left to propagate) - a Long Form-specific problem (e.g. the
+  // database not yet shared with the Notion integration) must not take
+  // down the entire dashboard/reports build for the rest of the client's
+  // data, the same way syncThumbnails/syncAudience etc. are individually
+  // guarded in sync.js.
+  var longFormRows = [];
+  try { longFormRows = await fetchLongFormRows(cfg); } catch (e) { console.log('Long Form dashboard fetch failed: ' + e); }
 
   var templatePath = new URL('../templates/DashboardTemplate.html', import.meta.url);
   var html = await fs.readFile(templatePath, 'utf8');
