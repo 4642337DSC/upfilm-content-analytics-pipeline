@@ -36,6 +36,11 @@ export function getConfig() {
     IG_FIELD_NAME: process.env.IG_FIELD_NAME || 'Instagram',
     TT_FIELD_NAME: process.env.TT_FIELD_NAME || 'TikTok',
 
+    // --- Optional: Long Form content (YouTube-only, no Shorts/Tip filter) ---
+    // Omit to skip - only Miradex has a separate Long Form database today.
+    LONG_FORM_NOTION_DATABASE_ID: process.env.LONG_FORM_NOTION_DATABASE_ID || null,
+    LONG_FORM_YT_FIELD_NAME: process.env.LONG_FORM_YT_FIELD_NAME || 'YT Views',
+
     // --- Video analysis pipeline (Gemini extract -> Claude score -> Notion) ---
     GEMINI_API_KEY: process.env.GEMINI_API_KEY || null,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || null,

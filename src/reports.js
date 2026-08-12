@@ -83,6 +83,7 @@ export async function buildReportsApp(cfg, data, outDir) {
     .replace('/*__RAW_DATA__*/', JSON.stringify(data.rows))
     .replace('/*__MONTHLY_VIEWS_DATA__*/', JSON.stringify(data.monthly))
     .replace('/*__FOLLOWER_SNAPSHOTS_DATA__*/', JSON.stringify(data.followerSnapshots))
+    .replace('/*__LONG_FORM_DATA__*/', JSON.stringify(data.longFormRows || []))
     .replace('/*__CLIENT_LOGO_BADGE__*/', clientLogoBadge)
     .replace('/*__MATERIALS_LINKS_DATA__*/', JSON.stringify(MATERIALS_LINKS[cfg.CLIENT_SLUG] || {}))
     .split('__CLIENT_NAME__').join(cfg.CLIENT_NAME);

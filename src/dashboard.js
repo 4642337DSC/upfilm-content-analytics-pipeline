@@ -192,6 +192,61 @@ export async function fetchDashboardRows(cfg, thumbMap) {
   return { rows: out, details: details };
 }
 
+// Single-platform sibling of buildDashboardRow, for the Long Form database
+// (YouTube-only - no Facebook/Instagram/TikTok view/like/comment properties
+// exist on that schema, so this doesn't reuse buildDashboardRow's fixed
+// 4-platform shape). No thumbnail column: Notion's Thumbnail file property
+// is a signed URL that must be downloaded within ~1hr (see thumbnails.js),
+// and this row-builder only runs at dashboard-build time, well after that
+// window for a second database - not worth restructuring sync.js's ordering
+// for a "simple table" per the agreed scope.
+export function buildLongFormRow(cfg, page) {
+  var props = page.properties;
+  var postDate = props['Data Postare'] && props['Data Postare'].date ? props['Data Postare'].date.start : null;
+  if (!postDate) return null;
+  var name = (props['Name'].title || []).map(function (t) { return t.plain_text; }).join('').trim();
+  var cod = richTextToString(props['Cod']);
+  var link = props['YouTube URL'] ? props['YouTube URL'].url : null;
+  return [
+    name,
+    cod,
+    numOrNull(props[cfg.LONG_FORM_YT_FIELD_NAME]),
+    postDate,
+    link,
+    numOrNull(props['Duration (s)']),
+    numOrNull(props['YT Likes']),
+    numOrNull(props['YT Comments']),
+    numOrNull(props['YT Hook Rate']),
+    numOrNull(props['YT Avg Watch %'])
+  ];
+}
+
+// Modeled on fetchDashboardRows, but against LONG_FORM_NOTION_DATABASE_ID
+// with just the "Postat?" filter - Long Form has no "Tip" property, so
+// there's nothing for buildShortsFilter's Tip clause to match against even
+// if NOTION_FILTER_TIP were true (it's always false for Miradex today).
+export async function fetchLongFormRows(cfg) {
+  var out = [];
+  if (!cfg.LONG_FORM_NOTION_DATABASE_ID) return out;
+  var cursor = null;
+  do {
+    var payload = {
+      page_size: 100,
+      filter: { property: 'Postat?', checkbox: { equals: true } }
+    };
+    if (cursor) payload.start_cursor = cursor;
+    var data = await queryNotionDatabase(cfg, cfg.LONG_FORM_NOTION_DATABASE_ID, payload);
+    if (data.object === 'error') throw new Error('Long Form query failed: ' + data.message);
+    (data.results || []).forEach(function (page) {
+      var row = buildLongFormRow(cfg, page);
+      if (row) out.push(row);
+    });
+    cursor = data.has_more ? data.next_cursor : null;
+  } while (cursor);
+  out.sort(function (a, b) { return a[3] < b[3] ? -1 : a[3] > b[3] ? 1 : 0; }); // ascending by post date
+  return out;
+}
+
 export async function fetchDashboardAudience(cfg) {
   var audience = {};
   if (!cfg.CHANNEL_STATS_DATABASE_ID) return audience;
@@ -287,6 +342,10 @@ export async function buildDashboard(cfg, thumbMap, outDir) {
   var monthly = await fetchDashboardMonthlyViews(cfg);
   var daily = await fetchDashboardDailyViews(cfg);
   var followerSnapshots = await fetchDashboardFollowerSnapshots(cfg);
+  // Empty array (not omitted) when disabled, so the template's embedded
+  // `var LONG_FORM = ...;` is always valid JS/JSON for every client,
+  // including Isogreen, which has no Long Form database.
+  var longFormRows = await fetchLongFormRows(cfg);
 
   var templatePath = new URL('../templates/DashboardTemplate.html', import.meta.url);
   var html = await fs.readFile(templatePath, 'utf8');
@@ -297,6 +356,7 @@ export async function buildDashboard(cfg, thumbMap, outDir) {
     .replace('/*__MONTHLY_VIEWS_DATA__*/', JSON.stringify(monthly))
     .replace('/*__DAILY_VIEWS_DATA__*/', JSON.stringify(daily))
     .replace('/*__FOLLOWER_SNAPSHOTS_DATA__*/', JSON.stringify(followerSnapshots))
+    .replace('/*__LONG_FORM_DATA__*/', JSON.stringify(longFormRows))
     .replace('__LAST_SYNCED__', isoDate(new Date()))
     .split('__CLIENT_NAME__').join(cfg.CLIENT_NAME);
 
@@ -306,7 +366,7 @@ export async function buildDashboard(cfg, thumbMap, outDir) {
 
   // Returned so callers (src/reports.js, via sync.js) can reuse this same
   // fetched data instead of re-querying Notion for the same rows/stats.
-  return { rows: rows, videoDetails: videoDetails, audience: audience, monthly: monthly, daily: daily, followerSnapshots: followerSnapshots };
+  return { rows: rows, videoDetails: videoDetails, audience: audience, monthly: monthly, daily: daily, followerSnapshots: followerSnapshots, longFormRows: longFormRows };
 }
 
 export function renderClientLinks(slugs) {

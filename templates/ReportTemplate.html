@@ -231,6 +231,16 @@ footer a { color: var(--accent); }
     </table>
   </div>
 
+  <div class="card" id="longFormCard" style="display:none">
+    <div class="card-title">Materiale Long Form</div>
+    <table>
+      <thead>
+        <tr><th>Cod</th><th>Nume</th><th>Data</th><th>Durată</th><th>Vizualizări</th><th>Aprecieri</th><th>Comentarii</th><th>% urmărit</th></tr>
+      </thead>
+      <tbody id="longFormVideoRows"></tbody>
+    </table>
+  </div>
+
   <div class="card">
     <div class="card-title">Vizualizări</div>
     <div class="card-hint no-print">Toate valorile sunt editabile - corectează-le înainte de a exporta PDF-ul.</div>
@@ -257,6 +267,11 @@ footer a { color: var(--accent); }
 var RAW = /*__RAW_DATA__*/;
 var MONTHLY_VIEWS = /*__MONTHLY_VIEWS_DATA__*/;
 var FOLLOWER_SNAPSHOTS = /*__FOLLOWER_SNAPSHOTS_DATA__*/;
+// Long Form content (Miradex only) - [name, cod, views, postDate, link,
+// durationS, likes, comments, hookRate, avgWatchPct]. Empty array for any
+// client without a Long Form database, in which case longFormCard just
+// never becomes visible - see render() below.
+var LONG_FORM = /*__LONG_FORM_DATA__*/;
 // Where to point the "materials" footer link for this client - either a
 // single link shown for every month ({static: url}), or a per-month
 // {"YYYY-MM": driveFolderId} map for clients whose source footage is
@@ -328,6 +343,43 @@ function groupRowsByMonth(rows) {
     byMonth[ym].push(r);
   });
   return byMonth;
+}
+
+// Long Form's postDate lives at index 3 (its row shape is much shorter than
+// the Shorts RAW rows) - otherwise identical grouping to groupRowsByMonth.
+function groupLongFormByMonth(rows) {
+  var byMonth = {};
+  rows.forEach(function (r) {
+    var ym = r[3] ? r[3].slice(0, 7) : null;
+    if (!ym) return;
+    if (!byMonth[ym]) byMonth[ym] = [];
+    byMonth[ym].push(r);
+  });
+  return byMonth;
+}
+
+function fmtDurationRo(s) {
+  if (typeof s !== "number") return "—";
+  var m = Math.floor(s / 60), sec = Math.round(s % 60);
+  return m + ":" + (sec < 10 ? "0" : "") + sec;
+}
+function fmtPercentRo(n) { return typeof n === "number" ? n.toFixed(1) + "%" : "—"; }
+
+function buildLongFormRowsHtml(monthRows) {
+  if (!monthRows.length) return '<tr class="empty-row"><td colspan="8">Niciun material Long Form postat în această lună.</td></tr>';
+  var sorted = monthRows.slice().sort(function (a, b) { return a[3] < b[3] ? -1 : a[3] > b[3] ? 1 : 0; });
+  return sorted.map(function (r) {
+    return "<tr>" +
+      "<td>" + escapeHtml(r[1]) + "</td>" +
+      '<td class="name-cell">' + escapeHtml(r[0]) + "</td>" +
+      "<td>" + fmtDateRo(r[3]) + "</td>" +
+      "<td>" + fmtDurationRo(r[5]) + "</td>" +
+      "<td>" + fmtFull(r[2]) + "</td>" +
+      "<td>" + fmtFull(r[6]) + "</td>" +
+      "<td>" + fmtFull(r[7]) + "</td>" +
+      "<td>" + fmtPercentRo(r[9]) + "</td>" +
+      "</tr>";
+  }).join("\n");
 }
 
 function buildVideoRowsHtml(monthRows) {
@@ -412,11 +464,15 @@ function buildFollowerStatsHtml(ym, followerSnapshots) {
 }
 
 var byMonth = groupRowsByMonth(RAW);
+var longFormByMonth = groupLongFormByMonth(LONG_FORM);
 var yearSelect = document.getElementById("yearSelect");
 var monthSelect = document.getElementById("monthSelect");
 
 function populateSelectors() {
-  var years = Object.keys(byMonth).map(function (ym) { return ym.slice(0, 4); });
+  // Union of both months' keys - a month with only Long Form posts (no
+  // Shorts that month) must still be selectable, not silently missing.
+  var allMonthKeys = Object.keys(byMonth).concat(Object.keys(longFormByMonth));
+  var years = allMonthKeys.map(function (ym) { return ym.slice(0, 4); });
   years = years.filter(function (y, i) { return years.indexOf(y) === i; }).sort().reverse();
   if (!years.length) years = [String(new Date().getFullYear())];
   years.forEach(function (y) {
@@ -430,7 +486,7 @@ function populateSelectors() {
     monthSelect.appendChild(opt);
   });
 
-  var months = Object.keys(byMonth).sort();
+  var months = allMonthKeys.filter(function (m, i) { return allMonthKeys.indexOf(m) === i; }).sort();
   var latestYm = months.length ? months[months.length - 1] : null;
   if (latestYm) {
     yearSelect.value = latestYm.slice(0, 4);
@@ -450,6 +506,15 @@ function render() {
   document.getElementById("monthNoteLabel").textContent = monthLabel;
   document.getElementById("videoRows").innerHTML = buildVideoRowsHtml(monthRows);
   document.getElementById("networkViews").innerHTML = buildNetworkViewsHtml(ym, monthRows, MONTHLY_VIEWS);
+
+  // Card only exists at all for clients with a Long Form database (LONG_FORM
+  // non-empty overall) - within that, still shown (with an empty-state row)
+  // for months with nothing posted, same convention as the Shorts table.
+  var longFormCard = document.getElementById("longFormCard");
+  if (LONG_FORM.length) {
+    longFormCard.style.display = "";
+    document.getElementById("longFormVideoRows").innerHTML = buildLongFormRowsHtml(longFormByMonth[ym] || []);
+  }
   document.getElementById("followerStats").innerHTML = buildFollowerStatsHtml(ym, FOLLOWER_SNAPSHOTS);
   document.title = "__CLIENT_NAME__ - " + monthLabel + " - deviz";
 

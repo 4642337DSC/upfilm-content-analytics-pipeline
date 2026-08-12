@@ -1135,6 +1135,21 @@
     <div class="table-more" id="tableMore"></div>
   </section>
 
+  <section class="card" id="longFormSection" style="display:none">
+    <div class="card-head">
+      <div class="card-title">Long form</div>
+      <div class="card-note">Sortable — click a column header</div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr id="longFormTheadRow"></tr>
+        </thead>
+        <tbody id="longFormTbody"></tbody>
+      </table>
+    </div>
+  </section>
+
   <footer>
     <span>Social Media Analytics — a recurring performance report. Data synced automatically from production tracking; nothing here is entered by hand.</span>
     <span>Prepared for __CLIENT_NAME__</span>
@@ -1209,6 +1224,14 @@
   // platforms/metrics each source actually exposes are non-null - see
   // buildVideoDetail in src/dashboard.js for what's available per platform.
   var VIDEO_DETAILS = /*__VIDEO_DETAILS_DATA__*/;
+
+  // Long Form content (Miradex only) - a separate, single-platform (YouTube)
+  // table, entirely independent of the RAW/DATA/state used by the Shorts
+  // table above. Empty array for any client without a Long Form database
+  // (see fetchLongFormRows in src/dashboard.js), in which case the whole
+  // section stays hidden - see renderLongForm below.
+  // [name, cod, views, postDate, link, durationS, likes, comments, hookRate, avgWatchPct]
+  var LONG_FORM = /*__LONG_FORM_DATA__*/;
 
   // Account-level follower counts, from the "📊 Channel Stats" Notion database
   // (populated daily by the Apps Script sync, separate from per-video RAW data).
@@ -2287,6 +2310,111 @@
     wrap.appendChild(btn);
   }
 
+  /* ===================== long form ===================== */
+  // Fully independent of RAW/DATA/state above - own row shape, own sort
+  // state, own thead/tbody. Section stays hidden entirely for clients with
+  // no Long Form database (LONG_FORM === []), so this never affects
+  // Isogreen's rendered page.
+  var LONG_FORM_COLUMNS = [
+    { key: "name", label: "Title" },
+    { key: "date", label: "Posted" },
+    { key: "durationS", label: "Length" },
+    { key: "views", label: "Views" },
+    { key: "likes", label: "Likes" },
+    { key: "comments", label: "Comments" },
+    { key: "avgWatchPct", label: "Avg watch %" },
+    { key: "hookRate", label: "Hook rate" },
+    { key: "link", label: "" }
+  ];
+  var longFormState = { sortKey: "date", sortDir: "desc" };
+
+  function fmtDuration(s) {
+    if (s === null || s === undefined) return "—";
+    var m = Math.floor(s / 60), sec = Math.round(s % 60);
+    return m + ":" + (sec < 10 ? "0" : "") + sec;
+  }
+  function fmtPercent(n) { return n === null || n === undefined ? "—" : n.toFixed(1) + "%"; }
+
+  function longFormRenderThead() {
+    var tr = document.getElementById("longFormTheadRow");
+    tr.textContent = "";
+    LONG_FORM_COLUMNS.forEach(function (col) {
+      var th = document.createElement("th");
+      var span = document.createElement("span");
+      span.textContent = col.label;
+      th.appendChild(span);
+      if (col.key !== "link") {
+        th.tabIndex = 0;
+        th.setAttribute("role", "columnheader");
+        var activate = function (key) {
+          return function () {
+            if (longFormState.sortKey === key) {
+              longFormState.sortDir = longFormState.sortDir === "asc" ? "desc" : "asc";
+            } else {
+              longFormState.sortKey = key;
+              longFormState.sortDir = "desc";
+            }
+            longFormRenderRows();
+          };
+        }(col.key);
+        th.addEventListener("click", activate);
+        th.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(); } });
+      } else {
+        th.style.cursor = "default";
+      }
+      tr.appendChild(th);
+    });
+  }
+
+  function longFormRenderRows() {
+    var rows = LONG_FORM.map(function (r) {
+      return {
+        name: r[0], cod: r[1], views: r[2], date: r[3], link: r[4],
+        durationS: r[5], likes: r[6], comments: r[7], hookRate: r[8], avgWatchPct: r[9]
+      };
+    });
+    rows.sort(function (a, b) {
+      var ka = a[longFormState.sortKey], kb = b[longFormState.sortKey];
+      if (longFormState.sortKey === "name") { ka = (ka || "").toLowerCase(); kb = (kb || "").toLowerCase(); }
+      else { ka = ka === null || ka === undefined ? -1 : ka; kb = kb === null || kb === undefined ? -1 : kb; }
+      if (ka < kb) return longFormState.sortDir === "asc" ? -1 : 1;
+      if (ka > kb) return longFormState.sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    var tbody = document.getElementById("longFormTbody");
+    tbody.textContent = "";
+    rows.forEach(function (r) {
+      var tr = document.createElement("tr");
+      [
+        r.name, fmtDate(r.date), fmtDuration(r.durationS), fmtFull(r.views),
+        fmtFull(r.likes), fmtFull(r.comments), fmtPercent(r.avgWatchPct), fmtPercent(r.hookRate)
+      ].forEach(function (text) {
+        var td = document.createElement("td");
+        td.textContent = text;
+        tr.appendChild(td);
+      });
+      var tdLink = document.createElement("td");
+      if (r.link) {
+        var a = document.createElement("a");
+        a.href = r.link; a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.textContent = "↗"; a.title = "Open video";
+        tdLink.appendChild(a);
+      } else {
+        tdLink.textContent = "—";
+      }
+      tr.appendChild(tdLink);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderLongForm() {
+    if (!LONG_FORM.length) return; // section stays hidden (default display:none)
+    document.getElementById("longFormSection").style.display = "";
+    longFormRenderThead();
+    longFormRenderRows();
+  }
+
   /* ===================== transcript modal ===================== */
   var transcriptModal = document.getElementById("transcriptModal");
   var transcriptModalTitle = document.getElementById("transcriptModalTitle");
@@ -3349,6 +3477,7 @@
   renderTheadOnce();
   renderAudience();
   renderChannelBenchmarks();
+  renderLongForm();
   renderAll();
 })();
 </script>

@@ -40,6 +40,7 @@ jobs:
           ZERNIO_API_KEY: ${{ secrets.ZERNIO_API_KEY }}
           # Per-client - looked up as <CLIENT>_<NAME> from repo secrets.
           NOTION_DATABASE_ID: ${{ secrets[format('{0}_NOTION_DATABASE_ID', matrix.client)] }}
+          LONG_FORM_NOTION_DATABASE_ID: ${{ secrets[format('{0}_LONG_FORM_NOTION_DATABASE_ID', matrix.client)] }}
           VIDEO_ANALYSIS_DATABASE_ID: ${{ secrets[format('{0}_VIDEO_ANALYSIS_DATABASE_ID', matrix.client)] }}
           CHANNEL_HANDLE: ${{ secrets[format('{0}_CHANNEL_HANDLE', matrix.client)] }}
           FB_PAGE_ID: ${{ secrets[format('{0}_FB_PAGE_ID', matrix.client)] }}

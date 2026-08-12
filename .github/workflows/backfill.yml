@@ -54,6 +54,7 @@ jobs:
           ZERNIO_API_KEY: ${{ secrets.ZERNIO_API_KEY }}
           # Per-client - looked up as <CLIENT>_<NAME> from repo secrets.
           NOTION_DATABASE_ID: ${{ secrets[format('{0}_NOTION_DATABASE_ID', github.event.inputs.client)] }}
+          LONG_FORM_NOTION_DATABASE_ID: ${{ secrets[format('{0}_LONG_FORM_NOTION_DATABASE_ID', github.event.inputs.client)] }}
           CHANNEL_HANDLE: ${{ secrets[format('{0}_CHANNEL_HANDLE', github.event.inputs.client)] }}
           FB_PAGE_ID: ${{ secrets[format('{0}_FB_PAGE_ID', github.event.inputs.client)] }}
           FB_PAGE_ACCESS_TOKEN: ${{ secrets[format('{0}_FB_PAGE_ACCESS_TOKEN', github.event.inputs.client)] }}

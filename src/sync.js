@@ -59,6 +59,23 @@ export async function syncAllViews() {
 
   await writeUpdates(cfg, rows, yt, fb, ig, tt);
 
+  // Long Form is a separate Notion database (Miradex only today), YouTube-only
+  // (no Facebook/Instagram/TikTok fields exist on that schema) - reuses the
+  // same fetch/sync/write functions above against an overridden config rather
+  // than generalizing them, so this whole block is a no-op (and Isogreen's
+  // pipeline is byte-for-byte unchanged) when the env var is unset.
+  if (cfg.LONG_FORM_NOTION_DATABASE_ID) {
+    var lfCfg = Object.assign({}, cfg, {
+      NOTION_DATABASE_ID: cfg.LONG_FORM_NOTION_DATABASE_ID,
+      YT_FIELD_NAME: cfg.LONG_FORM_YT_FIELD_NAME
+    });
+    try {
+      var lfRows = await fetchNotionRows(lfCfg);
+      var lfYt = await syncYouTube(lfCfg, lfRows);
+      await writeUpdates(lfCfg, lfRows, lfYt, null, null, null);
+    } catch (e) { console.log('Long Form sync failed: ' + e); }
+  }
+
   try { await syncAudience(cfg); } catch (e) { console.log('Audience sync failed: ' + e); }
 
   var oldestDate = oldestPostDate(rows);
