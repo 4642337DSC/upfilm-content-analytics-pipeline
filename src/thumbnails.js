@@ -26,12 +26,24 @@ var THUMB_JPEG_QUALITY = 78;
 
 // Returns a map of Cod -> relative thumbnail path (e.g. "thumbs/AB12.jpg")
 // for use in the dashboard rows, and writes the files into thumbsDir.
-export async function syncThumbnails(cfg, rows, thumbsDir) {
+//
+// opts.youtubeIdByPageId (optional): pageId -> YouTube video ID, used as a
+// last-resort fallback (after Notion's own Thumbnail, before giving up -
+// Facebook/Instagram fallback still takes precedence over it below, simply
+// because it existed first; there's no meaningful ordering reason between
+// the two). YouTube's own thumbnail CDN (i.ytimg.com) serves a fixed,
+// non-expiring URL per video ID - no API call needed, unlike the Meta
+// fallback below - which is what makes it safe to use even when this
+// function runs well after the row was first fetched (see its caller in
+// sync.js's Long Form block for why that ordering matters there).
+export async function syncThumbnails(cfg, rows, thumbsDir, opts) {
+  opts = opts || {};
+  var youtubeIdByPageId = opts.youtubeIdByPageId || {};
   await fs.mkdir(thumbsDir, { recursive: true });
   var map = {};
   var downloaded = 0;
   var noThumbnailSet = [];
-  var metaFallback = 0;
+  var fallbackUsed = 0;
 
   // Fallback for rows with no Notion Thumbnail at all: pull the matching
   // Facebook Reel's or Instagram post's own thumbnail image straight from
@@ -49,17 +61,24 @@ export async function syncThumbnails(cfg, rows, thumbsDir) {
   for (var row of rows) {
     if (!row.cod) continue;
     var sourceUrl = row.thumbnailUrl;
-    var fromMeta = false;
+    var fromFallback = false;
 
     if (!sourceUrl && fbVideos) {
       var fbMatch = matchContent(row.postDate, row.text, fbVideos);
       var fbCandidate = fbMatch && findById(fbVideos, fbMatch.id);
-      if (fbCandidate && fbCandidate.picture) { sourceUrl = fbCandidate.picture; fromMeta = true; }
+      if (fbCandidate && fbCandidate.picture) { sourceUrl = fbCandidate.picture; fromFallback = true; }
     }
     if (!sourceUrl && igMedia) {
       var igMatch = matchContent(row.postDate, row.text, igMedia);
       var igCandidate = igMatch && findById(igMedia, igMatch.id);
-      if (igCandidate && igCandidate.thumbnailUrl) { sourceUrl = igCandidate.thumbnailUrl; fromMeta = true; }
+      if (igCandidate && igCandidate.thumbnailUrl) { sourceUrl = igCandidate.thumbnailUrl; fromFallback = true; }
+    }
+    if (!sourceUrl && youtubeIdByPageId[row.pageId]) {
+      // hqdefault.jpg exists for every public video regardless of upload
+      // resolution (unlike maxresdefault.jpg, which 404s for older/lower-res
+      // uploads) - reliability over max size for a ~148px dashboard card.
+      sourceUrl = 'https://i.ytimg.com/vi/' + youtubeIdByPageId[row.pageId] + '/hqdefault.jpg';
+      fromFallback = true;
     }
 
     if (!sourceUrl) { noThumbnailSet.push(row.cod); continue; }
@@ -75,14 +94,14 @@ export async function syncThumbnails(cfg, rows, thumbsDir) {
       await fs.writeFile(path.join(thumbsDir, fileName), buffer);
       map[row.cod] = 'thumbs/' + fileName;
       downloaded++;
-      if (fromMeta) metaFallback++;
+      if (fromFallback) fallbackUsed++;
     } catch (e) { console.log('Thumbnail relay failed for ' + row.cod + ': ' + e); }
   }
 
   console.log('Thumbnails: downloaded ' + downloaded + ' file(s) into ' + thumbsDir + '.' +
-    (metaFallback ? ' (' + metaFallback + ' via Facebook/Instagram fallback)' : ''));
+    (fallbackUsed ? ' (' + fallbackUsed + ' via Facebook/Instagram/YouTube fallback)' : ''));
   if (noThumbnailSet.length) {
-    console.log('Thumbnails: no Notion Thumbnail and no Facebook/Instagram match for ' + noThumbnailSet.length + ' row(s): ' + noThumbnailSet.join(', '));
+    console.log('Thumbnails: no Notion Thumbnail and no fallback match for ' + noThumbnailSet.length + ' row(s): ' + noThumbnailSet.join(', '));
   }
   return map;
 }

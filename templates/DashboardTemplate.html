@@ -1230,7 +1230,7 @@
   // table above. Empty array for any client without a Long Form database
   // (see fetchLongFormRows in src/dashboard.js), in which case the whole
   // section stays hidden - see renderLongForm below.
-  // [name, cod, views, postDate, link, durationS, likes, comments, hookRate, avgWatchPct]
+  // [name, cod, views, postDate, link, durationS, likes, comments, hookRate (retention @ LONG_FORM_RETENTION_WINDOW_SECONDS), avgWatchPct, thumb]
   var LONG_FORM = /*__LONG_FORM_DATA__*/;
 
   // Account-level follower counts, from the "📊 Channel Stats" Notion database
@@ -2316,6 +2316,7 @@
   // no Long Form database (LONG_FORM === []), so this never affects
   // Isogreen's rendered page.
   var LONG_FORM_COLUMNS = [
+    { key: "thumb", label: "" },
     { key: "name", label: "Title" },
     { key: "date", label: "Posted" },
     { key: "durationS", label: "Length" },
@@ -2323,7 +2324,11 @@
     { key: "likes", label: "Likes" },
     { key: "comments", label: "Comments" },
     { key: "avgWatchPct", label: "Avg watch %" },
-    { key: "hookRate", label: "Hook rate" },
+    // Not "Hook rate" - deliberately not the same engagedViews/views figure
+    // Shorts uses (see buildLongFormRow in src/dashboard.js for why that
+    // doesn't discriminate for multi-minute content). This is a retention-
+    // curve sample at LONG_FORM_RETENTION_WINDOW_SECONDS (30s by default).
+    { key: "hookRate", label: "Retention @30s" },
     { key: "link", label: "" }
   ];
   var longFormState = { sortKey: "date", sortDir: "desc" };
@@ -2343,7 +2348,7 @@
       var span = document.createElement("span");
       span.textContent = col.label;
       th.appendChild(span);
-      if (col.key !== "link") {
+      if (col.key !== "link" && col.key !== "thumb") {
         th.tabIndex = 0;
         th.setAttribute("role", "columnheader");
         var activate = function (key) {
@@ -2370,7 +2375,7 @@
     var rows = LONG_FORM.map(function (r) {
       return {
         name: r[0], cod: r[1], views: r[2], date: r[3], link: r[4],
-        durationS: r[5], likes: r[6], comments: r[7], hookRate: r[8], avgWatchPct: r[9]
+        durationS: r[5], likes: r[6], comments: r[7], hookRate: r[8], avgWatchPct: r[9], thumb: r[10]
       };
     });
     rows.sort(function (a, b) {
@@ -2386,6 +2391,12 @@
     tbody.textContent = "";
     rows.forEach(function (r) {
       var tr = document.createElement("tr");
+
+      var tdThumb = document.createElement("td");
+      tdThumb.className = "thumb-cell";
+      tdThumb.appendChild(placeholderTile(r, "sm"));
+      tr.appendChild(tdThumb);
+
       [
         r.name, fmtDate(r.date), fmtDuration(r.durationS), fmtFull(r.views),
         fmtFull(r.likes), fmtFull(r.comments), fmtPercent(r.avgWatchPct), fmtPercent(r.hookRate)

@@ -195,12 +195,13 @@ export async function fetchDashboardRows(cfg, thumbMap) {
 // Single-platform sibling of buildDashboardRow, for the Long Form database
 // (YouTube-only - no Facebook/Instagram/TikTok view/like/comment properties
 // exist on that schema, so this doesn't reuse buildDashboardRow's fixed
-// 4-platform shape). No thumbnail column: Notion's Thumbnail file property
-// is a signed URL that must be downloaded within ~1hr (see thumbnails.js),
-// and this row-builder only runs at dashboard-build time, well after that
-// window for a second database - not worth restructuring sync.js's ordering
-// for a "simple table" per the agreed scope.
-export function buildLongFormRow(cfg, page) {
+// 4-platform shape). The "hook" column deliberately reads
+// LONG_FORM_RETENTION_FIELD_NAME ("YT Retention @30s" by default), not "YT
+// Hook Rate" - that field is engagedViews/views, a Shorts-shaped metric
+// (see the comment on syncYouTube's Long Form override in sync.js): almost
+// every Long Form viewer is still watching 3 seconds in, so it reads near
+// 100% for everything and carries no real signal for this content shape.
+export function buildLongFormRow(cfg, page, thumbMap) {
   var props = page.properties;
   var postDate = props['Data Postare'] && props['Data Postare'].date ? props['Data Postare'].date.start : null;
   if (!postDate) return null;
@@ -216,8 +217,9 @@ export function buildLongFormRow(cfg, page) {
     numOrNull(props['Duration (s)']),
     numOrNull(props['YT Likes']),
     numOrNull(props['YT Comments']),
-    numOrNull(props['YT Hook Rate']),
-    numOrNull(props['YT Avg Watch %'])
+    numOrNull(props[cfg.LONG_FORM_RETENTION_FIELD_NAME]),
+    numOrNull(props['YT Avg Watch %']),
+    thumbMap[cod] || null
   ];
 }
 
@@ -225,7 +227,7 @@ export function buildLongFormRow(cfg, page) {
 // with just the "Postat?" filter - Long Form has no "Tip" property, so
 // there's nothing for buildShortsFilter's Tip clause to match against even
 // if NOTION_FILTER_TIP were true (it's always false for Miradex today).
-export async function fetchLongFormRows(cfg) {
+export async function fetchLongFormRows(cfg, thumbMap) {
   var out = [];
   if (!cfg.LONG_FORM_NOTION_DATABASE_ID) return out;
   var cursor = null;
@@ -238,7 +240,7 @@ export async function fetchLongFormRows(cfg) {
     var data = await queryNotionDatabase(cfg, cfg.LONG_FORM_NOTION_DATABASE_ID, payload);
     if (data.object === 'error') throw new Error('Long Form query failed: ' + data.message);
     (data.results || []).forEach(function (page) {
-      var row = buildLongFormRow(cfg, page);
+      var row = buildLongFormRow(cfg, page, thumbMap);
       if (row) out.push(row);
     });
     cursor = data.has_more ? data.next_cursor : null;
@@ -351,7 +353,7 @@ export async function buildDashboard(cfg, thumbMap, outDir) {
   // data, the same way syncThumbnails/syncAudience etc. are individually
   // guarded in sync.js.
   var longFormRows = [];
-  try { longFormRows = await fetchLongFormRows(cfg); } catch (e) { console.log('Long Form dashboard fetch failed: ' + e); }
+  try { longFormRows = await fetchLongFormRows(cfg, thumbMap); } catch (e) { console.log('Long Form dashboard fetch failed: ' + e); }
 
   var templatePath = new URL('../templates/DashboardTemplate.html', import.meta.url);
   var html = await fs.readFile(templatePath, 'utf8');

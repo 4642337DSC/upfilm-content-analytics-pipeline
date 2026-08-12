@@ -50,3 +50,13 @@ test('buildUpdatePayloads skips platforms passed as null', () => {
 
   assert.deepEqual(payloads, { 'page-1': { YouTube: { number: 5 } } });
 });
+
+test('buildUpdatePayloads writes the retention window to cfg.RETENTION_WINDOW_FIELD_NAME', () => {
+  var cfg = { YT_FIELD_NAME: 'YT Views', RETENTION_WINDOW_FIELD_NAME: 'YT Retention @30s' };
+  var row = { pageId: 'page-1' };
+  var yt = { results: [{ row: row, views: 100, retentionAtWindow: 62 }] };
+
+  var payloads = buildUpdatePayloads(cfg, [row], yt, null, null, null);
+
+  assert.deepEqual(payloads['page-1']['YT Retention @30s'], { number: 62 });
+});

@@ -100,8 +100,8 @@ test('claudeScoresOrNull falls back to null notes/performance/pattern when those
   assert.equal(scores.reusablePattern, null);
 });
 
-test('buildLongFormRow reads views from cfg.LONG_FORM_YT_FIELD_NAME and the plain YT metric properties', () => {
-  var cfg = { LONG_FORM_YT_FIELD_NAME: 'YT Views' };
+test('buildLongFormRow reads views/hook from cfg-configured field names and the plain YT metric properties', () => {
+  var cfg = { LONG_FORM_YT_FIELD_NAME: 'YT Views', LONG_FORM_RETENTION_FIELD_NAME: 'YT Retention @30s' };
   var p = page({
     'Data Postare': { date: { start: '2026-08-05' } },
     'Name': { title: [{ plain_text: 'Totul despre fundatii' }] },
@@ -111,31 +111,31 @@ test('buildLongFormRow reads views from cfg.LONG_FORM_YT_FIELD_NAME and the plai
     'Duration (s)': { number: 3384 },
     'YT Likes': { number: 33 },
     'YT Comments': { number: 1 },
-    'YT Hook Rate': { number: 42.5 },
+    'YT Retention @30s': { number: 42.5 },
     'YT Avg Watch %': { number: 12.3 }
   });
 
-  var row = buildLongFormRow(cfg, p);
+  var row = buildLongFormRow(cfg, p, { '26-06': 'thumbs/26-06.jpg' });
 
   assert.deepEqual(row, [
     'Totul despre fundatii', '26-06', 657, '2026-08-05',
-    'https://www.youtube.com/watch?v=pUNuBwr0bRM', 3384, 33, 1, 42.5, 12.3
+    'https://www.youtube.com/watch?v=pUNuBwr0bRM', 3384, 33, 1, 42.5, 12.3, 'thumbs/26-06.jpg'
   ]);
 });
 
 test('buildLongFormRow returns null when there is no post date', () => {
-  var cfg = { LONG_FORM_YT_FIELD_NAME: 'YT Views' };
+  var cfg = { LONG_FORM_YT_FIELD_NAME: 'YT Views', LONG_FORM_RETENTION_FIELD_NAME: 'YT Retention @30s' };
   var p = page({
     'Data Postare': { date: null },
     'Name': { title: [] },
     'Cod': { rich_text: [] }
   });
 
-  assert.equal(buildLongFormRow(cfg, p), null);
+  assert.equal(buildLongFormRow(cfg, p, {}), null);
 });
 
-test('buildLongFormRow returns null for missing numeric metrics rather than throwing', () => {
-  var cfg = { LONG_FORM_YT_FIELD_NAME: 'YT Views' };
+test('buildLongFormRow returns null for missing numeric metrics and thumb rather than throwing', () => {
+  var cfg = { LONG_FORM_YT_FIELD_NAME: 'YT Views', LONG_FORM_RETENTION_FIELD_NAME: 'YT Retention @30s' };
   var p = page({
     'Data Postare': { date: { start: '2026-08-05' } },
     'Name': { title: [{ plain_text: 'Unposted draft' }] },
@@ -143,9 +143,9 @@ test('buildLongFormRow returns null for missing numeric metrics rather than thro
     'YouTube URL': null
   });
 
-  var row = buildLongFormRow(cfg, p);
+  var row = buildLongFormRow(cfg, p, {});
 
-  assert.deepEqual(row, ['Unposted draft', '26-07', null, '2026-08-05', null, null, null, null, null, null]);
+  assert.deepEqual(row, ['Unposted draft', '26-07', null, '2026-08-05', null, null, null, null, null, null, null]);
 });
 
 test('renderClientLinks renders one link per slug, sorted, label uppercased', () => {

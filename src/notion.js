@@ -358,7 +358,11 @@ export function buildUpdatePayloads(cfg, rows, yt, fb, ig, tt) {
     setNum(props, 'YT Likes', r.likes);
     setNum(props, 'YT Comments', r.comments);
     setNum(props, 'YT Hook Rate', r.hookRate);
-    setNum(props, 'YT Retention @3s', r.retentionAt3s);
+    // Field name is configurable (defaults to "YT Retention @3s") - Long
+    // Form's sync pass points this at "YT Retention @30s" instead, since
+    // cfg.RETENTION_WINDOW_SECONDS there is 30, not 3 (see src/sync.js and
+    // pickRetentionAtWindow's comment in youtube.js for why).
+    setNum(props, cfg.RETENTION_WINDOW_FIELD_NAME, r.retentionAtWindow);
     setNum(props, 'YT Avg Watch %', r.avgWatchPct);
     setNum(props, 'YT Avg Watch Time (s)', r.avgWatchTimeS);
     if (typeof r.relativeRetentionPerformance === 'number') {

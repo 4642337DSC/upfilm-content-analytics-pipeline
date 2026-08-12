@@ -40,6 +40,22 @@ export function getConfig() {
     // Omit to skip - only Miradex has a separate Long Form database today.
     LONG_FORM_NOTION_DATABASE_ID: process.env.LONG_FORM_NOTION_DATABASE_ID || null,
     LONG_FORM_YT_FIELD_NAME: process.env.LONG_FORM_YT_FIELD_NAME || 'YT Views',
+    // Own dedicated field name/window (not the plain RETENTION_WINDOW_* pair
+    // below) so the dashboard-build phase - which reads Notion with the
+    // top-level cfg, not the sync phase's lfCfg override - always knows
+    // where to find Long Form's retention number regardless of what the
+    // main client's own RETENTION_WINDOW_SECONDS happens to be set to.
+    LONG_FORM_RETENTION_WINDOW_SECONDS: process.env.LONG_FORM_RETENTION_WINDOW_SECONDS ? Number(process.env.LONG_FORM_RETENTION_WINDOW_SECONDS) : 30,
+    LONG_FORM_RETENTION_FIELD_NAME: process.env.LONG_FORM_RETENTION_FIELD_NAME || 'YT Retention @30s',
+
+    // How many seconds into the video pickRetentionAtWindow (youtube.js)
+    // samples, and which Notion property that number gets written to.
+    // Defaults match Shorts' own "hook" convention (3s) so every existing
+    // client is unaffected; Long Form's sync pass in sync.js overrides both
+    // to a longer, more meaningful checkpoint - see that override's comment
+    // for why 3s doesn't transfer to multi-minute content.
+    RETENTION_WINDOW_SECONDS: process.env.RETENTION_WINDOW_SECONDS ? Number(process.env.RETENTION_WINDOW_SECONDS) : 3,
+    RETENTION_WINDOW_FIELD_NAME: process.env.RETENTION_WINDOW_FIELD_NAME || 'YT Retention @3s',
 
     // --- Video analysis pipeline (Gemini extract -> Claude score -> Notion) ---
     GEMINI_API_KEY: process.env.GEMINI_API_KEY || null,

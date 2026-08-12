@@ -94,18 +94,23 @@ export function extractYouTubeId(url) {
   return m ? m[1] : null;
 }
 
-// A sample point plucked straight off the retention curve at ~3 seconds in -
-// NOT the same thing as "hook rate" (see fetchYouTubeAvgWatchStats for that,
-// sourced from engagedViews instead). This one inherits the retention
+// A sample point plucked straight off the retention curve at ~windowSeconds
+// in - NOT the same thing as "hook rate" (see fetchYouTubeAvgWatchStats for
+// that, sourced from engagedViews instead - and see the comment on
+// syncYouTube's `views/engagedViews` usage below for why that Shorts-shaped
+// definition doesn't transfer to Long Form). This one inherits the retention
 // curve's replay-inflation quirk and can read well above 100%, so it's
-// labeled "Retention @3s" rather than "Hook Rate" to avoid implying parity
+// labeled "Retention @Ns" rather than "Hook Rate" to avoid implying parity
 // with Facebook/Instagram's capped, replay-free hook-rate numbers. Since
 // the curve is bucketed by % of video elapsed rather than seconds, this
-// converts 3 seconds into that video's own elapsed-ratio scale using its
-// duration, then picks whichever bucket lands closest to it.
-export function pickRetentionAt3s(retention, duration) {
+// converts windowSeconds into that video's own elapsed-ratio scale using its
+// duration, then picks whichever bucket lands closest to it. Defaults to 3s
+// (Shorts' own convention - unchanged behavior for every existing caller);
+// Long Form's sync pass overrides this via cfg.RETENTION_WINDOW_SECONDS to
+// a longer, more meaningful checkpoint for that content shape.
+export function pickRetentionAtWindow(retention, duration, windowSeconds) {
   if (!retention || !duration) return null;
-  var targetRatio = 3 / duration;
+  var targetRatio = (windowSeconds || 3) / duration;
   var closestKey = null;
   var closestDiff = Infinity;
   Object.keys(retention).forEach(function (k) {
@@ -175,7 +180,7 @@ export async function syncYouTube(cfg, rows) {
       row: p.row, views: stat.views, duration: stat.duration, likes: stat.likes, comments: stat.comments,
       avgWatchTimeS: avgWatch.avgWatchTimeS, avgWatchPct: avgWatch.avgWatchPct,
       hookRate: postDateReliable ? avgWatch.hookRate : null,
-      retentionAt3s: retentionData ? pickRetentionAt3s(retentionData.retention, stat.duration) : null,
+      retentionAtWindow: retentionData ? pickRetentionAtWindow(retentionData.retention, stat.duration, cfg.RETENTION_WINDOW_SECONDS) : null,
       retention: retentionData ? retentionData.retention : null,
       relativeRetentionPerformance: retentionData ? retentionData.relativeRetentionPerformance : null,
       isNewMatch: p.isNewMatch, method: p.method, score: p.score,

@@ -235,7 +235,7 @@ footer a { color: var(--accent); }
     <div class="card-title">Materiale Long Form</div>
     <table>
       <thead>
-        <tr><th>Cod</th><th>Nume</th><th>Data</th><th>Durată</th><th>Vizualizări</th><th>Aprecieri</th><th>Comentarii</th><th>% urmărit</th></tr>
+        <tr><th></th><th>Cod</th><th>Nume</th><th>Data</th><th>Durată</th><th>Vizualizări</th><th>Aprecieri</th><th>Comentarii</th><th>% urmărit</th></tr>
       </thead>
       <tbody id="longFormVideoRows"></tbody>
     </table>
@@ -268,7 +268,8 @@ var RAW = /*__RAW_DATA__*/;
 var MONTHLY_VIEWS = /*__MONTHLY_VIEWS_DATA__*/;
 var FOLLOWER_SNAPSHOTS = /*__FOLLOWER_SNAPSHOTS_DATA__*/;
 // Long Form content (Miradex only) - [name, cod, views, postDate, link,
-// durationS, likes, comments, hookRate, avgWatchPct]. Empty array for any
+// durationS, likes, comments, hookRate (retention @ ~30s - not used on this
+// page, only the dashboard), avgWatchPct, thumb]. Empty array for any
 // client without a Long Form database, in which case longFormCard just
 // never becomes visible - see render() below.
 var LONG_FORM = /*__LONG_FORM_DATA__*/;
@@ -366,10 +367,14 @@ function fmtDurationRo(s) {
 function fmtPercentRo(n) { return typeof n === "number" ? n.toFixed(1) + "%" : "—"; }
 
 function buildLongFormRowsHtml(monthRows) {
-  if (!monthRows.length) return '<tr class="empty-row"><td colspan="8">Niciun material Long Form postat în această lună.</td></tr>';
+  if (!monthRows.length) return '<tr class="empty-row"><td colspan="9">Niciun material Long Form postat în această lună.</td></tr>';
   var sorted = monthRows.slice().sort(function (a, b) { return a[3] < b[3] ? -1 : a[3] > b[3] ? 1 : 0; });
   return sorted.map(function (r) {
+    var thumbHtml = r[10]
+      ? '<img class="thumb" src="../' + r[10] + '" alt="" loading="lazy">'
+      : '<div class="thumb thumb-empty"></div>';
     return "<tr>" +
+      '<td class="thumb-cell">' + thumbHtml + "</td>" +
       "<td>" + escapeHtml(r[1]) + "</td>" +
       '<td class="name-cell">' + escapeHtml(r[0]) + "</td>" +
       "<td>" + fmtDateRo(r[3]) + "</td>" +

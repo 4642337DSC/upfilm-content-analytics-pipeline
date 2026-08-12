@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getConfig, requireConfig } from './config.js';
 import { fetchNotionRows, writeUpdates } from './notion.js';
-import { syncYouTube } from './youtube.js';
+import { syncYouTube, extractYouTubeId } from './youtube.js';
 import { syncFacebook } from './facebook.js';
 import { syncInstagram } from './instagram.js';
 import { syncTikTok } from './tiktok.js';
@@ -64,15 +64,52 @@ export async function syncAllViews() {
   // same fetch/sync/write functions above against an overridden config rather
   // than generalizing them, so this whole block is a no-op (and Isogreen's
   // pipeline is byte-for-byte unchanged) when the env var is unset.
+  //
+  // RETENTION_WINDOW_SECONDS is overridden to 30 here (vs. Shorts' default
+  // 3): the "3s hook" checkpoint - and separately, YT Hook Rate's
+  // engagedViews/views ratio - are both tuned around Shorts' swipe-away
+  // behavior, where most drop-off happens in the opening couple of seconds.
+  // A 10-56 minute video has a real intro (title card, "in this video…",
+  // channel branding) - almost everyone who clicks is still watching at 3s,
+  // so that number is close to 100% for every Long Form video and carries no
+  // signal. 30s is past a typical intro and lines up with when actual
+  // subject-matter drop-off starts to show on these videos' own retention
+  // curves - written to its own "YT Retention @30s" property (not reusing
+  // "YT Retention @3s") so the two windows are never conflated. Easy to
+  // retune later via LONG_FORM env vars if 30s turns out wrong once more
+  // data exists.
   if (cfg.LONG_FORM_NOTION_DATABASE_ID) {
     var lfCfg = Object.assign({}, cfg, {
       NOTION_DATABASE_ID: cfg.LONG_FORM_NOTION_DATABASE_ID,
-      YT_FIELD_NAME: cfg.LONG_FORM_YT_FIELD_NAME
+      YT_FIELD_NAME: cfg.LONG_FORM_YT_FIELD_NAME,
+      RETENTION_WINDOW_SECONDS: cfg.LONG_FORM_RETENTION_WINDOW_SECONDS,
+      RETENTION_WINDOW_FIELD_NAME: cfg.LONG_FORM_RETENTION_FIELD_NAME
     });
     try {
       var lfRows = await fetchNotionRows(lfCfg);
       var lfYt = await syncYouTube(lfCfg, lfRows);
       await writeUpdates(lfCfg, lfRows, lfYt, null, null, null);
+
+      // Thumbnails: prefer Notion's own Thumbnail property (same as Shorts,
+      // via syncThumbnails' existing precedence), falling back to the
+      // video's public YouTube thumbnail for rows with none set. Unlike
+      // Notion's signed file URLs, YouTube's thumbnail CDN URLs never expire,
+      // so - unlike the main thumbMap above - there's no ordering constraint
+      // forcing this to happen before the sync calls; running it here, after
+      // the video is matched, is what makes the YouTube fallback possible at
+      // all (needs the matched video ID). Merged into the same thumbMap/
+      // thumbs dir the Shorts thumbnails use - Cods are unique across both
+      // databases, so there's no key collision.
+      var youtubeIdByPageId = {};
+      lfYt.results.forEach(function (r) {
+        var link = r.url || r.row.youtubeUrl;
+        var id = link ? extractYouTubeId(link) : null;
+        if (id) youtubeIdByPageId[r.row.pageId] = id;
+      });
+      try {
+        var lfThumbMap = await syncThumbnails(lfCfg, lfRows, path.join(DIST_DIR, 'thumbs'), { youtubeIdByPageId: youtubeIdByPageId });
+        Object.assign(thumbMap, lfThumbMap);
+      } catch (e) { console.log('Long Form thumbnail sync failed: ' + e); }
     } catch (e) { console.log('Long Form sync failed: ' + e); }
   }
 
