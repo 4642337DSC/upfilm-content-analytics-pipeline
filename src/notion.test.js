@@ -83,18 +83,3 @@ test('buildUpdatePayloads leaves Name untouched when youtubeTitle is null even w
 
   assert.equal(payloads['page-1']['Name'], undefined);
 });
-
-test('buildUpdatePayloads writes impressions/CTR only when field names are configured', () => {
-  var row = { pageId: 'page-1' };
-  var yt = { results: [{ row: row, views: 100, impressions: 5000, impressionsCtr: 4.2 }] };
-
-  var onCfg = { YT_FIELD_NAME: 'YT Views', IMPRESSIONS_FIELD_NAME: 'YT Impressions', IMPRESSIONS_CTR_FIELD_NAME: 'YT Impressions CTR' };
-  var onPayloads = buildUpdatePayloads(onCfg, [row], yt, null, null, null);
-  assert.deepEqual(onPayloads['page-1']['YT Impressions'], { number: 5000 });
-  assert.deepEqual(onPayloads['page-1']['YT Impressions CTR'], { number: 4.2 });
-
-  var offCfg = { YT_FIELD_NAME: 'YT Views', IMPRESSIONS_FIELD_NAME: null, IMPRESSIONS_CTR_FIELD_NAME: null };
-  var offPayloads = buildUpdatePayloads(offCfg, [row], yt, null, null, null);
-  assert.equal(offPayloads['page-1']['YT Impressions'], undefined);
-  assert.equal(offPayloads['page-1']['YT Impressions CTR'], undefined);
-});

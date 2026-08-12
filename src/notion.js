@@ -371,10 +371,6 @@ export function buildUpdatePayloads(cfg, rows, yt, fb, ig, tt) {
     setNum(props, cfg.RETENTION_WINDOW_FIELD_NAME, r.retentionAtWindow);
     setNum(props, 'YT Avg Watch %', r.avgWatchPct);
     setNum(props, 'YT Avg Watch Time (s)', r.avgWatchTimeS);
-    // Unset (null) field names for any client without these Notion
-    // properties yet - see cfg.IMPRESSIONS_FIELD_NAME's comment in config.js.
-    if (cfg.IMPRESSIONS_FIELD_NAME) setNum(props, cfg.IMPRESSIONS_FIELD_NAME, r.impressions);
-    if (cfg.IMPRESSIONS_CTR_FIELD_NAME) setNum(props, cfg.IMPRESSIONS_CTR_FIELD_NAME, r.impressionsCtr);
     if (typeof r.relativeRetentionPerformance === 'number') {
       props['YT Retention vs Similar'] = { number: Math.round(r.relativeRetentionPerformance * 1000) / 10 };
     }
