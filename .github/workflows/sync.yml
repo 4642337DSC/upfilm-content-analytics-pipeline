@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        client: [isogreen, miradex]
+        client: [isogreen, miradex, darcomenergy]
     steps:
       - uses: actions/checkout@v4
 
@@ -28,8 +28,13 @@ jobs:
       - name: Run sync
         env:
           CLIENT_SLUG: ${{ matrix.client }}
-          CLIENT_NAME: ${{ matrix.client == 'isogreen' && 'ISOGREEN' || 'MIRADEX' }}
-          NOTION_FILTER_TIP: ${{ matrix.client == 'isogreen' && 'true' || 'false' }}
+          CLIENT_NAME: ${{ matrix.client == 'isogreen' && 'ISOGREEN' || matrix.client == 'miradex' && 'MIRADEX' || 'Darcom Energy' }}
+          # Shorts-only for isogreen and darcomenergy (darcomenergy's "Tip"
+          # is a single select, not multi_select - see TIP_PROPERTY_TYPE
+          # below); miradex has no Tip filter (separate Long Form database
+          # instead, see LONG_FORM_NOTION_DATABASE_ID).
+          NOTION_FILTER_TIP: ${{ matrix.client == 'miradex' && 'false' || 'true' }}
+          TIP_PROPERTY_TYPE: ${{ matrix.client == 'darcomenergy' && 'select' || '' }}
           YT_FIELD_NAME: ${{ matrix.client == 'miradex' && 'V7Z - Yt Shorts' || 'YouTube' }}
           FB_FIELD_NAME: ${{ matrix.client == 'miradex' && 'V7Z - Fb' || 'Facebook' }}
           IG_FIELD_NAME: ${{ matrix.client == 'miradex' && 'V7Z - Insta' || 'Instagram' }}
