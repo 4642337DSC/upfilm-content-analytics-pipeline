@@ -323,7 +323,17 @@ function diceCoefficient(a, b) {
 
 export function buildShortsFilter(cfg) {
   var and = [{ property: 'Postat?', checkbox: { equals: true } }];
-  if (cfg.NOTION_FILTER_TIP) and.unshift({ property: 'Tip', multi_select: { contains: 'Short' } });
+  if (cfg.NOTION_FILTER_TIP) {
+    // Most clients' "Tip" property is multi_select (a row can be tagged
+    // both Short and Long); Darcom Energy's is a plain single select
+    // instead - cfg.TIP_PROPERTY_TYPE picks the matching Notion filter
+    // shape per client. Defaults to multi_select so every existing
+    // client's behavior/tests are unaffected.
+    var tipFilter = cfg.TIP_PROPERTY_TYPE === 'select'
+      ? { property: 'Tip', select: { equals: 'Short' } }
+      : { property: 'Tip', multi_select: { contains: 'Short' } };
+    and.unshift(tipFilter);
+  }
   return { and: and };
 }
 

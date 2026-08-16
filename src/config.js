@@ -31,6 +31,10 @@ export function getConfig() {
     CLIENT_SLUG: process.env.CLIENT_SLUG || 'isogreen',
     CLIENT_NAME: process.env.CLIENT_NAME || 'ISOGREEN',
     NOTION_FILTER_TIP: process.env.NOTION_FILTER_TIP !== 'false',
+    // multi_select (default, matches ISOGREEN/Miradex's "Tip" property) or
+    // select - Darcom Energy's "Tip" is a plain single select instead, so
+    // its sync sets this to 'select' (see buildShortsFilter in notion.js).
+    TIP_PROPERTY_TYPE: process.env.TIP_PROPERTY_TYPE || 'multi_select',
     YT_FIELD_NAME: process.env.YT_FIELD_NAME || 'YouTube',
     FB_FIELD_NAME: process.env.FB_FIELD_NAME || 'Facebook',
     IG_FIELD_NAME: process.env.IG_FIELD_NAME || 'Instagram',

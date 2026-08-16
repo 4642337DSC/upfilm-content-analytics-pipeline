@@ -19,6 +19,16 @@ test('buildShortsFilter omits the Tip clause when NOTION_FILTER_TIP is false', (
   });
 });
 
+test('buildShortsFilter uses a select clause when TIP_PROPERTY_TYPE is "select" (Darcom Energy)', () => {
+  var filter = buildShortsFilter({ NOTION_FILTER_TIP: true, TIP_PROPERTY_TYPE: 'select' });
+  assert.deepEqual(filter, {
+    and: [
+      { property: 'Tip', select: { equals: 'Short' } },
+      { property: 'Postat?', checkbox: { equals: true } }
+    ]
+  });
+});
+
 test('buildUpdatePayloads writes counts into the cfg-configured field names', () => {
   var cfg = {
     YT_FIELD_NAME: 'V7Z - Yt Shorts',
