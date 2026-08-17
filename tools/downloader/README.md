@@ -23,13 +23,20 @@ live per URL; finished files get an individual download link plus a
 
 ## Setup
 
-```
-cd tools/downloader
-npm install
-npm start
-```
+One-time only: with the prerequisites above installed, double-click the
+launcher for your OS:
 
-Then open `http://localhost:4173` (override with `PORT=xxxx npm start`).
+- **macOS/Linux**: `start.command`
+- **Windows**: `start.bat`
+
+It installs the npm dependencies on first run, starts the local server, and
+opens `http://localhost:4173` in your default browser automatically. Every
+run after that is the same double-click — no terminal needed. Leave the
+terminal/console window it opens running in the background; closing it stops
+the server.
+
+(Or run it manually: `cd tools/downloader && npm install && npm start`,
+override the port with `PORT=xxxx npm start`.)
 
 ## Notes
 

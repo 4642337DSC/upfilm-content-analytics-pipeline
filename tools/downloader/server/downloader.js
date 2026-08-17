@@ -60,7 +60,11 @@ export function downloadOne(url, outDir, onProgress) {
       if (stderrTail.length > 20) stderrTail.shift();
     });
     proc.on('error', function (err) {
-      reject(new Error('Failed to launch yt-dlp: ' + err.message));
+      if (err.code === 'ENOENT') {
+        reject(new Error('yt-dlp is not installed (or not on PATH). Install it with "pip install -U yt-dlp" and try again.'));
+      } else {
+        reject(new Error('Failed to launch yt-dlp: ' + err.message));
+      }
     });
     proc.on('close', function (code) {
       if (buffer) handleLine(buffer);

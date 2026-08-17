@@ -3,6 +3,7 @@ import archiver from 'archiver';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { spawn, spawnSync } from 'node:child_process';
 import { createJob, getJob, jobSnapshot, addListener, removeListener } from './jobs.js';
 
 var __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -83,6 +84,27 @@ app.get('/api/jobs/:id/zip', function (req, res) {
   archive.finalize();
 });
 
+function checkTool(cmd) {
+  var result = spawnSync(cmd, ['--version'], { stdio: 'ignore' });
+  return !result.error;
+}
+
+function openBrowser(url) {
+  var platform = process.platform;
+  var child;
+  if (platform === 'darwin') child = spawn('open', [url], { stdio: 'ignore', detached: true });
+  else if (platform === 'win32') child = spawn('cmd', ['/c', 'start', '', url], { stdio: 'ignore', detached: true, shell: true });
+  else child = spawn('xdg-open', [url], { stdio: 'ignore', detached: true });
+  child.on('error', function () {}); // best-effort only, e.g. no GUI/xdg-open on headless boxes
+  child.unref();
+}
+
 app.listen(PORT, function () {
-  console.log('Social downloader running at http://localhost:' + PORT);
+  var url = 'http://localhost:' + PORT;
+  console.log('Social downloader running at ' + url);
+
+  if (!checkTool('yt-dlp')) console.log('WARNING: yt-dlp not found on PATH. Install it with "pip install -U yt-dlp".');
+  if (!checkTool('ffmpeg')) console.log('WARNING: ffmpeg not found on PATH. 1080p downloads that need merging (mainly YouTube) will fail without it.');
+
+  openBrowser(url);
 });
