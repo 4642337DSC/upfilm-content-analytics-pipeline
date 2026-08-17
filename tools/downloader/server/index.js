@@ -93,7 +93,7 @@ function openBrowser(url) {
   var platform = process.platform;
   var child;
   if (platform === 'darwin') child = spawn('open', [url], { stdio: 'ignore', detached: true });
-  else if (platform === 'win32') child = spawn('cmd', ['/c', 'start', '', url], { stdio: 'ignore', detached: true, shell: true });
+  else if (platform === 'win32') child = spawn('cmd.exe', ['/c', 'start', '', url], { stdio: 'ignore', detached: true });
   else child = spawn('xdg-open', [url], { stdio: 'ignore', detached: true });
   child.on('error', function () {}); // best-effort only, e.g. no GUI/xdg-open on headless boxes
   child.unref();

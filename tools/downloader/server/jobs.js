@@ -32,6 +32,7 @@ async function runQueue(job) {
     var item;
     while ((item = queue.shift())) {
       item.status = 'downloading';
+      console.log('[' + job.id.slice(0, 8) + '] downloading: ' + item.url);
       broadcast(job, { type: 'item', item: publicItem(item) });
       try {
         var result = await downloadOne(item.url, job.dir, function (progress) {
@@ -43,9 +44,11 @@ async function runQueue(job) {
         item.percent = 100;
         item.title = result.title;
         item.filepath = result.filepath;
+        console.log('[' + job.id.slice(0, 8) + '] done: ' + item.title);
       } catch (err) {
         item.status = 'error';
         item.error = err.message;
+        console.log('[' + job.id.slice(0, 8) + '] FAILED (' + item.url + '): ' + err.message);
       }
       broadcast(job, { type: 'item', item: publicItem(item) });
     }
@@ -53,6 +56,7 @@ async function runQueue(job) {
 
   await Promise.all(workers);
   job.finished = true;
+  console.log('[' + job.id.slice(0, 8) + '] job finished: ' + job.items.filter(function (i) { return i.status === 'done'; }).length + '/' + job.items.length + ' succeeded');
   broadcast(job, { type: 'job-done' });
 }
 
@@ -71,6 +75,7 @@ export function createJob(urls, baseDownloadsDir) {
     })
   };
   jobs.set(id, job);
+  console.log('[' + id.slice(0, 8) + '] job started: ' + urls.length + ' url(s)');
   runQueue(job).catch(function (err) {
     job.finished = true;
     broadcast(job, { type: 'job-error', error: err.message });
