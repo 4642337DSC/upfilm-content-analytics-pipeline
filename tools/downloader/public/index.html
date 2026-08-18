@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Social Downloader</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<main>
+  <h1>Social Downloader</h1>
+  <p class="subtitle">Paste TikTok, Instagram, YouTube, or Facebook video URLs &mdash; one per line. Downloads up to 1080p.</p>
+
+  <textarea id="urls" placeholder="https://www.tiktok.com/@user/video/123...&#10;https://www.instagram.com/reel/...&#10;https://www.youtube.com/watch?v=..." rows="8"></textarea>
+
+  <div class="actions">
+    <button id="start" type="button">Download</button>
+    <span id="error" class="error"></span>
+  </div>
+
+  <section id="results" hidden>
+    <div class="results-header">
+      <h2>Downloads</h2>
+      <a id="zip" class="zip-link" hidden href="#" download>Download all as .zip</a>
+    </div>
+    <ul id="items"></ul>
+  </section>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>

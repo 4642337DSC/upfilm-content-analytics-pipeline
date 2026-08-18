@@ -360,6 +360,21 @@
     font-size: 15px;
   }
   .card-note { font-size: 12.5px; color: var(--muted); }
+  /* Two cards sharing a row (Top performers/Latest reels, Monthly
+     breakdown/Channel benchmarks) - collapses to one column under the
+     existing 860px mobile breakpoint, same as .kpi-grid. */
+  .card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 22px; }
+  .card-row > .card { margin-bottom: 0; }
+  @media (max-width: 860px) { .card-row { grid-template-columns: 1fr; } }
+  /* Groups title+note so a header can also carry a "Show all" button
+     without the button splitting away from the title via space-between. */
+  .card-head-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .card-head .show-more-btn { flex: none; }
+  /* Sub-range filters (Top performers, Latest reels) reuse .filterbar/.chip
+     as-is, just tighter since they sit inside a half-width card. */
+  .filterbar.sub { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px dashed var(--border); gap: 6px; }
+  .filterbar.sub .chip { padding: 4px 10px; font-size: 11.5px; }
+  .filterbar.sub .date-input { padding: 3px 7px; font-size: 11px; width: 108px; }
 
   /* ---------- legend ---------- */
   .legend {
@@ -849,6 +864,12 @@
     flex-direction: column;
     gap: 20px;
   }
+  /* "Show all" popups (Top performers/Latest reels/Monthly breakdown/Every
+     short) reuse the .detail-modal chrome above - just wider, since they
+     hold grids/tables rather than one video's thumb+stats. */
+  .list-modal-panel { max-width: 900px; }
+  .list-modal-panel .perf-grid,
+  .list-modal-panel .month-list { margin-top: 0; }
 
   .detail-views-row { display: flex; flex-wrap: wrap; gap: 8px; }
   .detail-view-chip {
@@ -1057,10 +1078,10 @@
 
   <section class="audience-strip" id="audienceStrip" aria-label="Follower counts"></section>
 
-  <div class="filterbar" role="group" aria-label="Date range">
+  <div class="filterbar" id="globalFilterbar" role="group" aria-label="Date range">
     <span class="flabel">Range</span>
-    <button class="chip" data-range="all" type="button" aria-pressed="true">All time</button>
-    <button class="chip" data-range="year-current" type="button" aria-pressed="false">Current year</button>
+    <button class="chip" data-range="all" type="button" aria-pressed="false">All time</button>
+    <button class="chip" data-range="year-current" type="button" aria-pressed="true">Current year</button>
     <button class="chip" data-range="year-last" type="button" aria-pressed="false">Last completed year</button>
     <button class="chip" data-range="365" type="button" aria-pressed="false">Last year</button>
     <button class="chip" data-range="month-current" type="button" aria-pressed="false">Current month</button>
@@ -1091,14 +1112,76 @@
     </div>
   </section>
 
+  <div class="card-row">
+    <section class="card">
+      <div class="card-head">
+        <div class="card-head-text">
+          <div class="card-title">Top performers</div>
+          <div class="card-note" id="rankNote">Ranked by total views</div>
+        </div>
+        <button class="show-more-btn" id="rankShowAll" type="button">Show all</button>
+      </div>
+      <div class="filterbar sub" id="rankFilterbar" role="group" aria-label="Top performers date range">
+        <span class="flabel">Range</span>
+        <button class="chip" data-range="all" type="button" aria-pressed="true">All time</button>
+        <button class="chip" data-range="year-current" type="button" aria-pressed="false">Current year</button>
+        <button class="chip" data-range="year-last" type="button" aria-pressed="false">Last completed year</button>
+        <button class="chip" data-range="365" type="button" aria-pressed="false">Last year</button>
+        <button class="chip" data-range="month-current" type="button" aria-pressed="false">Current month</button>
+        <button class="chip" data-range="month-last" type="button" aria-pressed="false">Last completed month</button>
+        <button class="chip" data-range="30" type="button" aria-pressed="false">Last 30 days</button>
+        <button class="chip" data-range="90" type="button" aria-pressed="false">Last 90 days</button>
+        <input class="date-input" id="rankRangeFrom" type="date" aria-label="Top performers custom range: from date" />
+        <span class="date-sep">–</span>
+        <input class="date-input" id="rankRangeTo" type="date" aria-label="Top performers custom range: to date" />
+      </div>
+      <div class="perf-filters" id="perfFilters" role="group" aria-label="Filter by platform"></div>
+      <div class="perf-grid" id="rankList"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-head-text">
+          <div class="card-title">Latest reels</div>
+          <div class="card-note" id="latestNote">Most recent shorts posted</div>
+        </div>
+        <button class="show-more-btn" id="latestShowAll" type="button">Show all</button>
+      </div>
+      <div class="filterbar sub" id="latestFilterbar" role="group" aria-label="Latest reels date range">
+        <span class="flabel">Range</span>
+        <button class="chip" data-range="all" type="button" aria-pressed="true">All time</button>
+        <button class="chip" data-range="year-current" type="button" aria-pressed="false">Current year</button>
+        <button class="chip" data-range="year-last" type="button" aria-pressed="false">Last completed year</button>
+        <button class="chip" data-range="365" type="button" aria-pressed="false">Last year</button>
+        <button class="chip" data-range="month-current" type="button" aria-pressed="false">Current month</button>
+        <button class="chip" data-range="month-last" type="button" aria-pressed="false">Last completed month</button>
+        <button class="chip" data-range="30" type="button" aria-pressed="false">Last 30 days</button>
+        <button class="chip" data-range="90" type="button" aria-pressed="false">Last 90 days</button>
+        <input class="date-input" id="latestRangeFrom" type="date" aria-label="Latest reels custom range: from date" />
+        <span class="date-sep">–</span>
+        <input class="date-input" id="latestRangeTo" type="date" aria-label="Latest reels custom range: to date" />
+      </div>
+      <div class="perf-grid" id="latestList"></div>
+    </section>
+  </div>
+
+  <div class="card-row">
   <section class="card">
     <div class="card-head">
-      <div class="card-title">Top performers</div>
-      <div class="card-note" id="rankNote">Ranked by total views</div>
+      <div class="card-head-text">
+        <div class="card-title">Monthly breakdown</div>
+        <div class="card-note" id="monthlyNote">Total views and shorts posted, by month</div>
+      </div>
+      <button class="show-more-btn" id="monthlyShowAll" type="button">Show all</button>
     </div>
-    <div class="perf-filters" id="perfFilters" role="group" aria-label="Filter by platform"></div>
-    <div class="perf-grid" id="rankList"></div>
-    <div class="table-more" id="perfMore"></div>
+    <div class="month-sort" role="group" aria-label="Sort months by">
+      <button class="chip month-sort-chip" data-sort="date-desc" type="button" aria-pressed="true">Newest</button>
+      <button class="chip month-sort-chip" data-sort="date-asc" type="button" aria-pressed="false">Oldest</button>
+      <button class="chip month-sort-chip" data-sort="views-desc" type="button" aria-pressed="false">Most views</button>
+      <button class="chip month-sort-chip" data-sort="views-asc" type="button" aria-pressed="false">Fewest views</button>
+      <button class="chip month-sort-chip" data-sort="shorts-desc" type="button" aria-pressed="false">Most shorts</button>
+    </div>
+    <div class="month-list" id="monthList"></div>
   </section>
 
   <section class="card">
@@ -1114,26 +1197,15 @@
     </div>
     <div class="benchmarks-note">Hook rate windows differ by platform (YouTube/Instagram: past 3s, Facebook: past 6s) - not directly comparable across the row.</div>
   </section>
+  </div>
 
   <section class="card">
     <div class="card-head">
-      <div class="card-title">Monthly breakdown</div>
-      <div class="card-note" id="monthlyNote">Total views and shorts posted, by month</div>
-    </div>
-    <div class="month-sort" role="group" aria-label="Sort months by">
-      <button class="chip month-sort-chip" data-sort="date-desc" type="button" aria-pressed="true">Newest</button>
-      <button class="chip month-sort-chip" data-sort="date-asc" type="button" aria-pressed="false">Oldest</button>
-      <button class="chip month-sort-chip" data-sort="views-desc" type="button" aria-pressed="false">Most views</button>
-      <button class="chip month-sort-chip" data-sort="views-asc" type="button" aria-pressed="false">Fewest views</button>
-      <button class="chip month-sort-chip" data-sort="shorts-desc" type="button" aria-pressed="false">Most shorts</button>
-    </div>
-    <div class="month-list" id="monthList"></div>
-  </section>
-
-  <section class="card">
-    <div class="card-head">
-      <div class="card-title">Every short</div>
-      <div class="card-note" id="tableNote">Sortable — click a column header</div>
+      <div class="card-head-text">
+        <div class="card-title">Every short</div>
+        <div class="card-note" id="tableNote">Sortable — click a column header</div>
+      </div>
+      <button class="show-more-btn" id="tableShowAll" type="button">Show all</button>
     </div>
     <div class="table-controls">
       <input class="search-input" id="searchInput" type="search" placeholder="Search by title or code…" aria-label="Search shorts" />
@@ -1146,7 +1218,6 @@
         <tbody id="tbody"></tbody>
       </table>
     </div>
-    <div class="table-more" id="tableMore"></div>
   </section>
 
   <section class="card" id="longFormSection" style="display:none">
@@ -1197,6 +1268,20 @@
       <button class="detail-modal-close" id="detailModalClose" type="button" aria-label="Close video detail">✕</button>
     </div>
     <div class="detail-modal-body" id="detailModalBody"></div>
+  </div>
+</div>
+
+<div class="detail-modal" id="listModal">
+  <div class="detail-modal-overlay" id="listModalOverlay"></div>
+  <div class="detail-modal-panel list-modal-panel" role="dialog" aria-modal="true" aria-labelledby="listModalTitle">
+    <div class="detail-modal-head">
+      <div class="detail-modal-titles">
+        <div class="detail-modal-title" id="listModalTitle"></div>
+        <div class="detail-modal-sub" id="listModalSub"></div>
+      </div>
+      <button class="detail-modal-close" id="listModalClose" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="detail-modal-body" id="listModalBody"></div>
   </div>
 </div>
 
@@ -1367,12 +1452,19 @@
   // customTo (both null by default) take over once the date inputs are
   // edited by hand, clearing activePreset - either bound alone is a valid
   // open-ended range (e.g. customFrom only = "from that date through now").
+  // topPerfPreset/latestPreset (+ their own custom bounds) are independent of
+  // the page's global activePreset - each of these two cards runs its own
+  // range filter (same chip set as the main one, wired separately below),
+  // both defaulting to "all" regardless of what the global range defaults to.
   var state = {
-    activePreset: "all", customFrom: null, customTo: null, sortKey: "date", sortDir: "desc", search: "", tableLimit: 5, chartTab: "daily",
-    perfPlatforms: ["yt", "tt", "ig", "fb"], perfLimit: 6, monthSort: "date-desc"
+    activePreset: "year-current", customFrom: null, customTo: null, sortKey: "date", sortDir: "desc", search: "", chartTab: "daily",
+    perfPlatforms: ["yt", "tt", "ig", "fb"], monthSort: "date-desc",
+    topPerfPreset: "all", topPerfCustomFrom: null, topPerfCustomTo: null,
+    latestPreset: "all", latestCustomFrom: null, latestCustomTo: null
   };
-  var TABLE_PAGE_STEPS = [5, 15, Infinity]; // initial view, "Show more" (+10), "Show all"
-  var PERF_PAGE_STEPS = [6, 12]; // initial view, "Show more" (+6)
+  var TABLE_DEFAULT_LIMIT = 5;
+  var PERF_DEFAULT_LIMIT = 3;
+  var MONTHLY_DEFAULT_LIMIT = 12;
 
   // { start, end } for a named preset key - end === null means "open,
   // through whatever the latest real data is" (current year/month, and the
@@ -1417,8 +1509,16 @@
   }
 
   function filteredData() {
-    var start = rangeStartDate();
-    var end = rangeEndDate();
+    return filteredDataRange(state.activePreset, state.customFrom, state.customTo);
+  }
+
+  // Same date-window filter as filteredData, but against an independent
+  // {preset, customFrom, customTo} triple rather than the global state -
+  // powers Top performers' and Latest reels' own range filters, which run
+  // on their own schedule regardless of the page's global range chip.
+  function filteredDataRange(preset, customFrom, customTo) {
+    var range = preset ? computeRangePreset(preset) : { start: customFrom, end: customTo };
+    var start = range.start, end = range.end;
     return DATA.filter(function (r) { return (!start || r.date >= start) && (!end || r.date <= end); });
   }
 
@@ -1840,16 +1940,85 @@
         } else {
           state.perfPlatforms.push(p.key);
         }
-        state.perfLimit = PERF_PAGE_STEPS[0];
         renderPerfFilters();
         renderRank();
+        renderLatestReels();
       });
       wrap.appendChild(btn);
     });
   }
 
-  function renderRank() {
-    var rows = filteredData();
+  // Shared by Top performers, Latest reels, and both cards' "Show all"
+  // popups - badgeText is the only thing that differs by caller (a rank
+  // number for Top performers, a short date for Latest reels).
+  function buildPerfCard(item, badgeText, activePlatforms) {
+    var r = item.r;
+    var card = document.createElement("div");
+    card.className = "perf-card";
+    card.appendChild(placeholderTile(r, "lg"));
+
+    var badge = document.createElement("div");
+    badge.className = "perf-rank-badge";
+    badge.textContent = badgeText;
+    card.appendChild(badge);
+
+    var viewsTop = document.createElement("div");
+    viewsTop.className = "perf-views-top";
+    activePlatforms.forEach(function (p) {
+      var v = r[p.key];
+      if (v === null || v === undefined) return;
+      var chip = document.createElement("span");
+      chip.className = "perf-view-chip";
+      chip.appendChild(platformIcon(p.key, "sm"));
+      var chipVal = document.createElement("span");
+      chipVal.textContent = fmtCompact(v);
+      chipVal.title = fmtFull(v);
+      chip.appendChild(chipVal);
+      viewsTop.appendChild(chip);
+    });
+    card.appendChild(viewsTop);
+
+    if (r.transcript) {
+      var tBtn = document.createElement("button");
+      tBtn.type = "button";
+      tBtn.className = "perf-transcript-btn";
+      tBtn.textContent = "✓";
+      tBtn.setAttribute("aria-label", "View transcript for " + r.name.trim());
+      tBtn.addEventListener("click", function (name, cod, text) {
+        return function (e) { e.stopPropagation(); openTranscript(name, cod, text); };
+      }(r.name.trim(), r.cod, r.transcript));
+      card.appendChild(tBtn);
+    }
+
+    var bottom = document.createElement("div");
+    bottom.className = "perf-bottom";
+    var nameEl = document.createElement("div");
+    nameEl.className = "perf-name";
+    nameEl.textContent = r.name.trim();
+    nameEl.title = r.name.trim() + " (" + r.cod + ")";
+    var totalEl = document.createElement("div");
+    totalEl.className = "perf-total";
+    totalEl.textContent = fmtCompact(item.t) + " total views";
+    totalEl.title = fmtFull(item.t);
+    bottom.appendChild(nameEl); bottom.appendChild(totalEl);
+    card.appendChild(bottom);
+
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("aria-label", "View details for " + r.name.trim());
+    card.addEventListener("click", function (row) { return function () { openVideoDetail(row); }; }(r));
+    card.addEventListener("keydown", function (row) {
+      return function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openVideoDetail(row); } };
+    }(r));
+
+    return card;
+  }
+
+  // Ranked (by total views across the platforms currently toggled on) over
+  // its own independent range filter - see the "sub" filterbar wired near
+  // the bottom of this file, separate from the page's global range.
+  function rankedPerfItems() {
+    var rows = filteredDataRange(state.topPerfPreset, state.topPerfCustomFrom, state.topPerfCustomTo);
     var activePlatforms = PLATFORMS.filter(function (p) { return state.perfPlatforms.indexOf(p.key) !== -1; });
     var ranked = rows
       .filter(function (r) { return activePlatforms.some(function (p) { return r[p.key] !== null; }); })
@@ -1858,91 +2027,45 @@
         return { r: r, t: t };
       })
       .sort(function (a, b) { return b.t - a.t; });
+    return { items: ranked, activePlatforms: activePlatforms };
+  }
 
-    var visible = ranked.slice(0, state.perfLimit);
+  function renderRank() {
+    var ranked = rankedPerfItems();
+    var visible = ranked.items.slice(0, PERF_DEFAULT_LIMIT);
     var grid = document.getElementById("rankList");
     grid.textContent = "";
-    document.getElementById("rankNote").textContent = "Top " + visible.length + " of " + ranked.length + " in range, by total views";
-
-    var moreWrap = document.getElementById("perfMore");
-    moreWrap.textContent = "";
-    if (state.perfLimit < ranked.length) {
-      var stepIdx = PERF_PAGE_STEPS.indexOf(state.perfLimit);
-      var nextLimit = PERF_PAGE_STEPS[stepIdx + 1];
-      if (nextLimit !== undefined) {
-        var moreBtn = document.createElement("button");
-        moreBtn.type = "button";
-        moreBtn.className = "show-more-btn";
-        moreBtn.textContent = "Show more";
-        moreBtn.addEventListener("click", function () {
-          state.perfLimit = nextLimit;
-          renderRank();
-        });
-        moreWrap.appendChild(moreBtn);
-      }
-    }
-
+    document.getElementById("rankNote").textContent = "Top " + visible.length + " of " + ranked.items.length + " in range, by total views";
     visible.forEach(function (item, idx) {
-      var r = item.r;
-      var card = document.createElement("div");
-      card.className = "perf-card";
-      card.appendChild(placeholderTile(r, "lg"));
+      grid.appendChild(buildPerfCard(item, String(idx + 1), ranked.activePlatforms));
+    });
+  }
 
-      var badge = document.createElement("div");
-      badge.className = "perf-rank-badge";
-      badge.textContent = String(idx + 1);
-      card.appendChild(badge);
+  /* ===================== render: latest reels ===================== */
+  // Same tile as Top performers, but sorted by post date (newest first)
+  // instead of total views, over its own independent range filter
+  // (defaults to "All time", like Top performers).
+  function latestReelItems() {
+    var rows = filteredDataRange(state.latestPreset, state.latestCustomFrom, state.latestCustomTo);
+    var activePlatforms = PLATFORMS.filter(function (p) { return state.perfPlatforms.indexOf(p.key) !== -1; });
+    var items = rows
+      .filter(function (r) { return activePlatforms.some(function (p) { return r[p.key] !== null; }); })
+      .map(function (r) {
+        var t = activePlatforms.reduce(function (sum, p) { return sum + (r[p.key] || 0); }, 0);
+        return { r: r, t: t };
+      })
+      .sort(function (a, b) { return a.r.date < b.r.date ? 1 : a.r.date > b.r.date ? -1 : 0; });
+    return { items: items, activePlatforms: activePlatforms };
+  }
 
-      var viewsTop = document.createElement("div");
-      viewsTop.className = "perf-views-top";
-      activePlatforms.forEach(function (p) {
-        var v = r[p.key];
-        if (v === null || v === undefined) return;
-        var chip = document.createElement("span");
-        chip.className = "perf-view-chip";
-        chip.appendChild(platformIcon(p.key, "sm"));
-        var chipVal = document.createElement("span");
-        chipVal.textContent = fmtCompact(v);
-        chipVal.title = fmtFull(v);
-        chip.appendChild(chipVal);
-        viewsTop.appendChild(chip);
-      });
-      card.appendChild(viewsTop);
-
-      if (r.transcript) {
-        var tBtn = document.createElement("button");
-        tBtn.type = "button";
-        tBtn.className = "perf-transcript-btn";
-        tBtn.textContent = "✓";
-        tBtn.setAttribute("aria-label", "View transcript for " + r.name.trim());
-        tBtn.addEventListener("click", function (name, cod, text) {
-          return function (e) { e.stopPropagation(); openTranscript(name, cod, text); };
-        }(r.name.trim(), r.cod, r.transcript));
-        card.appendChild(tBtn);
-      }
-
-      var bottom = document.createElement("div");
-      bottom.className = "perf-bottom";
-      var nameEl = document.createElement("div");
-      nameEl.className = "perf-name";
-      nameEl.textContent = r.name.trim();
-      nameEl.title = r.name.trim() + " (" + r.cod + ")";
-      var totalEl = document.createElement("div");
-      totalEl.className = "perf-total";
-      totalEl.textContent = fmtCompact(item.t) + " total views";
-      totalEl.title = fmtFull(item.t);
-      bottom.appendChild(nameEl); bottom.appendChild(totalEl);
-      card.appendChild(bottom);
-
-      card.setAttribute("role", "button");
-      card.setAttribute("tabindex", "0");
-      card.setAttribute("aria-label", "View details for " + r.name.trim());
-      card.addEventListener("click", function (row) { return function () { openVideoDetail(row); }; }(r));
-      card.addEventListener("keydown", function (row) {
-        return function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openVideoDetail(row); } };
-      }(r));
-
-      grid.appendChild(card);
+  function renderLatestReels() {
+    var latest = latestReelItems();
+    var visible = latest.items.slice(0, PERF_DEFAULT_LIMIT);
+    var grid = document.getElementById("latestList");
+    grid.textContent = "";
+    document.getElementById("latestNote").textContent = "Latest " + visible.length + " of " + latest.items.length + " in range";
+    visible.forEach(function (item) {
+      grid.appendChild(buildPerfCard(item, fmtDateShort(item.r.date), latest.activePlatforms));
     });
   }
 
@@ -1958,7 +2081,9 @@
   // totals before this was simplified to the more intuitive per-video sum).
   var MONTHLY_PLATFORMS = PLATFORMS;
 
-  function renderMonthly() {
+  // Full sorted month list for the current global range - unsliced, used by
+  // both the capped card render and its "Show all" popup.
+  function computeMonths() {
     var start = rangeStartDate();
     var end = rangeEndDate();
     var monthKeys = {};
@@ -1988,90 +2113,99 @@
         default: return a.ym < b.ym ? 1 : a.ym > b.ym ? -1 : 0; // "date-desc"
       }
     });
+    return months;
+  }
+
+  function buildMonthRow(m, isFirstOpen) {
+    var parts = m.ym.split("-");
+    var monthLabel = MONTH_NAMES[parseInt(parts[1], 10) - 1] + " " + parts[0];
+
+    var details = document.createElement("details");
+    details.className = "month-row";
+    if (isFirstOpen) details.open = true;
+
+    var summary = document.createElement("summary");
+
+    var caret = document.createElement("span");
+    caret.className = "month-caret";
+    caret.textContent = "▶";
+    caret.setAttribute("aria-hidden", "true");
+
+    var label = document.createElement("span");
+    label.className = "month-label";
+    label.textContent = monthLabel;
+
+    var tot = document.createElement("span");
+    tot.className = "month-total";
+    tot.textContent = fmtCompact(m.total);
+    tot.title = fmtFull(m.total) + " (total views of shorts posted this month, summed across platforms)";
+
+    var top = document.createElement("div");
+    top.className = "month-summary-top";
+    var labelWrap = document.createElement("span");
+    labelWrap.className = "month-summary-label";
+    labelWrap.appendChild(caret); labelWrap.appendChild(label);
+    top.appendChild(labelWrap); top.appendChild(tot);
+
+    var mix = document.createElement("span");
+    mix.className = "month-mix";
+    PLATFORMS.forEach(function (p) {
+      if (m.platformsWithData[p.key]) mix.appendChild(platformIcon(p.key, "sm"));
+    });
+
+    var count = document.createElement("span");
+    count.className = "month-count";
+    count.textContent = m.rows.length + (m.rows.length === 1 ? " short" : " shorts");
+    mix.appendChild(count);
+
+    summary.appendChild(top); summary.appendChild(mix);
+    details.appendChild(summary);
+
+    var videosWrap = document.createElement("div");
+    videosWrap.className = "month-videos";
+    if (m.rows.length === 0) {
+      var noneItem = document.createElement("div");
+      noneItem.className = "month-video-item";
+      var noneLabel = document.createElement("span");
+      noneLabel.className = "month-video-name";
+      noneLabel.textContent = "No shorts posted this month — views are from earlier posts still being watched";
+      noneItem.appendChild(noneLabel);
+      videosWrap.appendChild(noneItem);
+    } else {
+      m.rows.slice().sort(function (a, b) { return total(b) - total(a); }).forEach(function (r) {
+        var item = document.createElement("div");
+        item.className = "month-video-item";
+        item.setAttribute("role", "button");
+        item.setAttribute("tabindex", "0");
+        item.setAttribute("aria-label", "View details for " + r.name.trim());
+        var nm = document.createElement("span");
+        nm.className = "month-video-name";
+        nm.textContent = r.name.trim();
+        var tv = document.createElement("span");
+        tv.className = "month-video-total";
+        tv.textContent = fmtFull(total(r));
+        item.appendChild(nm); item.appendChild(tv);
+        item.addEventListener("click", function (row) { return function () { openVideoDetail(row); }; }(r));
+        item.addEventListener("keydown", function (row) {
+          return function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openVideoDetail(row); } };
+        }(r));
+        videosWrap.appendChild(item);
+      });
+    }
+    details.appendChild(videosWrap);
+    return details;
+  }
+
+  function renderMonthly() {
+    var months = computeMonths();
+    var visible = months.slice(0, MONTHLY_DEFAULT_LIMIT);
 
     var wrap = document.getElementById("monthList");
     wrap.textContent = "";
-    document.getElementById("monthlyNote").textContent = months.length + " month" + (months.length === 1 ? "" : "s") + " in range — total views of shorts posted that month";
+    document.getElementById("monthlyNote").textContent = "Showing " + visible.length + " of " + months.length + " month" + (months.length === 1 ? "" : "s") + " in range — total views of shorts posted that month";
 
-    months.forEach(function (m, idx) {
-      var parts = m.ym.split("-");
-      var monthLabel = MONTH_NAMES[parseInt(parts[1], 10) - 1] + " " + parts[0];
-
-      var details = document.createElement("details");
-      details.className = "month-row";
-      if (idx === 0) details.open = true;
-
-      var summary = document.createElement("summary");
-
-      var caret = document.createElement("span");
-      caret.className = "month-caret";
-      caret.textContent = "▶";
-      caret.setAttribute("aria-hidden", "true");
-
-      var label = document.createElement("span");
-      label.className = "month-label";
-      label.textContent = monthLabel;
-
-      var tot = document.createElement("span");
-      tot.className = "month-total";
-      tot.textContent = fmtCompact(m.total);
-      tot.title = fmtFull(m.total) + " (total views of shorts posted this month, summed across platforms)";
-
-      var top = document.createElement("div");
-      top.className = "month-summary-top";
-      var labelWrap = document.createElement("span");
-      labelWrap.className = "month-summary-label";
-      labelWrap.appendChild(caret); labelWrap.appendChild(label);
-      top.appendChild(labelWrap); top.appendChild(tot);
-
-      var mix = document.createElement("span");
-      mix.className = "month-mix";
-      PLATFORMS.forEach(function (p) {
-        if (m.platformsWithData[p.key]) mix.appendChild(platformIcon(p.key, "sm"));
-      });
-
-      var count = document.createElement("span");
-      count.className = "month-count";
-      count.textContent = m.rows.length + (m.rows.length === 1 ? " short" : " shorts");
-      mix.appendChild(count);
-
-      summary.appendChild(top); summary.appendChild(mix);
-      details.appendChild(summary);
-
-      var videosWrap = document.createElement("div");
-      videosWrap.className = "month-videos";
-      if (m.rows.length === 0) {
-        var noneItem = document.createElement("div");
-        noneItem.className = "month-video-item";
-        var noneLabel = document.createElement("span");
-        noneLabel.className = "month-video-name";
-        noneLabel.textContent = "No shorts posted this month — views are from earlier posts still being watched";
-        noneItem.appendChild(noneLabel);
-        videosWrap.appendChild(noneItem);
-      } else {
-        m.rows.slice().sort(function (a, b) { return total(b) - total(a); }).forEach(function (r) {
-          var item = document.createElement("div");
-          item.className = "month-video-item";
-          item.setAttribute("role", "button");
-          item.setAttribute("tabindex", "0");
-          item.setAttribute("aria-label", "View details for " + r.name.trim());
-          var nm = document.createElement("span");
-          nm.className = "month-video-name";
-          nm.textContent = r.name.trim();
-          var tv = document.createElement("span");
-          tv.className = "month-video-total";
-          tv.textContent = fmtFull(total(r));
-          item.appendChild(nm); item.appendChild(tv);
-          item.addEventListener("click", function (row) { return function () { openVideoDetail(row); }; }(r));
-          item.addEventListener("keydown", function (row) {
-            return function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openVideoDetail(row); } };
-          }(r));
-          videosWrap.appendChild(item);
-        });
-      }
-      details.appendChild(videosWrap);
-
-      wrap.appendChild(details);
+    visible.forEach(function (m, idx) {
+      wrap.appendChild(buildMonthRow(m, idx === 0));
     });
   }
 
@@ -2157,7 +2291,9 @@
     return td;
   }
 
-  function renderTable() {
+  // Filtered (search) + sorted rows for the current global range - unsliced,
+  // used by both the capped card render and its "Show all" popup.
+  function computeTableRows() {
     var rows = filteredData();
     var q = state.search.trim().toLowerCase();
     if (q) {
@@ -2180,6 +2316,101 @@
       if (ka > kb) return state.sortDir === "asc" ? 1 : -1;
       return 0;
     });
+    return withTotal;
+  }
+
+  function buildDataRow(item) {
+    var r = item.r;
+    var tr = document.createElement("tr");
+
+    var tdThumb = document.createElement("td");
+    tdThumb.className = "thumb-cell";
+    tdThumb.appendChild(placeholderTile(r, "sm"));
+
+    var tdName = document.createElement("td");
+    tdName.className = "name-cell";
+    tdName.textContent = r.name.trim();
+    tdName.title = r.name.trim() + " (" + r.cod + ")";
+
+    var tdDate = document.createElement("td");
+    tdDate.className = "date-cell";
+    tdDate.textContent = fmtDateShort(r.date);
+
+    var tdYt = document.createElement("td");
+    tdYt.className = r.yt === null ? "muted-cell" : "";
+    tdYt.textContent = fmtFull(r.yt);
+
+    var tdTt = document.createElement("td");
+    tdTt.className = r.tt === null ? "muted-cell" : "";
+    tdTt.textContent = fmtFull(r.tt);
+
+    var tdIg = document.createElement("td");
+    tdIg.className = r.ig === null ? "muted-cell" : "";
+    tdIg.textContent = fmtFull(r.ig);
+
+    var tdFb = document.createElement("td");
+    tdFb.className = r.fb === null ? "muted-cell" : "";
+    tdFb.textContent = fmtFull(r.fb);
+
+    var tdTotal = document.createElement("td");
+    tdTotal.className = "total-cell";
+    tdTotal.textContent = fmtFull(item.total);
+
+    var tdLink = document.createElement("td");
+    tdLink.className = "link-cell";
+    if (r.link) {
+      var a = document.createElement("a");
+      a.href = r.link;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = "↗";
+      a.title = "Open short";
+      a.setAttribute("aria-label", "Open " + r.name.trim());
+      a.addEventListener("click", function (e) { e.stopPropagation(); });
+      tdLink.appendChild(a);
+    } else {
+      tdLink.className += " muted-cell";
+      tdLink.textContent = "—";
+    }
+
+    var tdTranscript = document.createElement("td");
+    tdTranscript.className = "transcript-cell";
+    if (r.transcript) {
+      var tBtn = document.createElement("button");
+      tBtn.type = "button";
+      tBtn.className = "transcript-check";
+      tBtn.textContent = "✓";
+      tBtn.setAttribute("aria-label", "View transcript for " + r.name.trim());
+      tBtn.addEventListener("click", function (name, cod, text) {
+        return function (e) { e.stopPropagation(); openTranscript(name, cod, text); };
+      }(r.name.trim(), r.cod, r.transcript));
+      tdTranscript.appendChild(tBtn);
+    } else {
+      var tX = document.createElement("span");
+      tX.className = "transcript-x";
+      tX.textContent = "✕";
+      tX.setAttribute("aria-label", "No transcript");
+      tdTranscript.appendChild(tX);
+    }
+
+    var tdGemini = buildStatusTickCell(r.geminiExtracted, "Gemini extraction", "Not yet extracted by Gemini");
+    var tdClaude = buildStatusTickCell(r.claudeScored, "Claude scoring", "Not yet scored by Claude");
+
+    tr.appendChild(tdThumb); tr.appendChild(tdName); tr.appendChild(tdDate); tr.appendChild(tdYt);
+    tr.appendChild(tdTt); tr.appendChild(tdIg); tr.appendChild(tdFb); tr.appendChild(tdTotal);
+    tr.appendChild(tdLink); tr.appendChild(tdTranscript); tr.appendChild(tdGemini); tr.appendChild(tdClaude);
+    tr.setAttribute("tabindex", "0");
+    tr.setAttribute("role", "button");
+    tr.setAttribute("aria-label", "View details for " + r.name.trim());
+    tr.addEventListener("click", function (row) { return function () { openVideoDetail(row); }; }(r));
+    tr.addEventListener("keydown", function (row) {
+      return function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openVideoDetail(row); } };
+    }(r));
+    return tr;
+  }
+
+  function renderTable() {
+    var withTotal = computeTableRows();
 
     // header state
     Array.prototype.forEach.call(document.querySelectorAll("#theadRow th"), function (th) {
@@ -2193,12 +2424,10 @@
     var tbody = document.getElementById("tbody");
     tbody.textContent = "";
 
-    var visible = withTotal.slice(0, state.tableLimit);
+    var visible = withTotal.slice(0, TABLE_DEFAULT_LIMIT);
     document.getElementById("tableNote").textContent = withTotal.length === visible.length
       ? withTotal.length.toLocaleString("en-US") + " of " + DATA.length.toLocaleString("en-US") + " shorts shown"
       : "Showing " + visible.length.toLocaleString("en-US") + " of " + withTotal.length.toLocaleString("en-US") + " matching shorts";
-
-    renderTableMore(withTotal.length);
 
     if (withTotal.length === 0) {
       var trEmpty = document.createElement("tr");
@@ -2211,118 +2440,7 @@
       return;
     }
 
-    visible.forEach(function (item) {
-      var r = item.r;
-      var tr = document.createElement("tr");
-
-      var tdThumb = document.createElement("td");
-      tdThumb.className = "thumb-cell";
-      tdThumb.appendChild(placeholderTile(r, "sm"));
-
-      var tdName = document.createElement("td");
-      tdName.className = "name-cell";
-      tdName.textContent = r.name.trim();
-      tdName.title = r.name.trim() + " (" + r.cod + ")";
-
-      var tdDate = document.createElement("td");
-      tdDate.className = "date-cell";
-      tdDate.textContent = fmtDateShort(r.date);
-
-      var tdYt = document.createElement("td");
-      tdYt.className = r.yt === null ? "muted-cell" : "";
-      tdYt.textContent = fmtFull(r.yt);
-
-      var tdTt = document.createElement("td");
-      tdTt.className = r.tt === null ? "muted-cell" : "";
-      tdTt.textContent = fmtFull(r.tt);
-
-      var tdIg = document.createElement("td");
-      tdIg.className = r.ig === null ? "muted-cell" : "";
-      tdIg.textContent = fmtFull(r.ig);
-
-      var tdFb = document.createElement("td");
-      tdFb.className = r.fb === null ? "muted-cell" : "";
-      tdFb.textContent = fmtFull(r.fb);
-
-      var tdTotal = document.createElement("td");
-      tdTotal.className = "total-cell";
-      tdTotal.textContent = fmtFull(item.total);
-
-      var tdLink = document.createElement("td");
-      tdLink.className = "link-cell";
-      if (r.link) {
-        var a = document.createElement("a");
-        a.href = r.link;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        a.textContent = "↗";
-        a.title = "Open short";
-        a.setAttribute("aria-label", "Open " + r.name.trim());
-        a.addEventListener("click", function (e) { e.stopPropagation(); });
-        tdLink.appendChild(a);
-      } else {
-        tdLink.className += " muted-cell";
-        tdLink.textContent = "—";
-      }
-
-      var tdTranscript = document.createElement("td");
-      tdTranscript.className = "transcript-cell";
-      if (r.transcript) {
-        var tBtn = document.createElement("button");
-        tBtn.type = "button";
-        tBtn.className = "transcript-check";
-        tBtn.textContent = "✓";
-        tBtn.setAttribute("aria-label", "View transcript for " + r.name.trim());
-        tBtn.addEventListener("click", function (name, cod, text) {
-          return function (e) { e.stopPropagation(); openTranscript(name, cod, text); };
-        }(r.name.trim(), r.cod, r.transcript));
-        tdTranscript.appendChild(tBtn);
-      } else {
-        var tX = document.createElement("span");
-        tX.className = "transcript-x";
-        tX.textContent = "✕";
-        tX.setAttribute("aria-label", "No transcript");
-        tdTranscript.appendChild(tX);
-      }
-
-      var tdGemini = buildStatusTickCell(r.geminiExtracted, "Gemini extraction", "Not yet extracted by Gemini");
-      var tdClaude = buildStatusTickCell(r.claudeScored, "Claude scoring", "Not yet scored by Claude");
-
-      tr.appendChild(tdThumb); tr.appendChild(tdName); tr.appendChild(tdDate); tr.appendChild(tdYt);
-      tr.appendChild(tdTt); tr.appendChild(tdIg); tr.appendChild(tdFb); tr.appendChild(tdTotal);
-      tr.appendChild(tdLink); tr.appendChild(tdTranscript); tr.appendChild(tdGemini); tr.appendChild(tdClaude);
-      tr.setAttribute("tabindex", "0");
-      tr.setAttribute("role", "button");
-      tr.setAttribute("aria-label", "View details for " + r.name.trim());
-      tr.addEventListener("click", function (row) { return function () { openVideoDetail(row); }; }(r));
-      tr.addEventListener("keydown", function (row) {
-        return function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openVideoDetail(row); } };
-      }(r));
-      tbody.appendChild(tr);
-    });
-  }
-
-  // "Show more" (+10) then "Show all", based on where state.tableLimit
-  // currently sits in TABLE_PAGE_STEPS - matches the current filtered/
-  // searched total (matchedCount), not the full unfiltered DATA set.
-  function renderTableMore(matchedCount) {
-    var wrap = document.getElementById("tableMore");
-    wrap.textContent = "";
-    if (state.tableLimit >= matchedCount) return;
-
-    var stepIdx = TABLE_PAGE_STEPS.indexOf(state.tableLimit);
-    var nextLimit = TABLE_PAGE_STEPS[stepIdx + 1];
-    if (nextLimit === undefined) return;
-
-    var btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "show-more-btn";
-    btn.textContent = nextLimit === Infinity ? "Show all" : "Show more";
-    btn.addEventListener("click", function () {
-      state.tableLimit = nextLimit;
-      renderTable();
-    });
-    wrap.appendChild(btn);
+    visible.forEach(function (item) { tbody.appendChild(buildDataRow(item)); });
   }
 
   /* ===================== long form ===================== */
@@ -2451,9 +2569,10 @@
     });
   }
 
-  // "Show more" (+5) then "Show all" - same LONG_FORM_PAGE_STEPS-walking
-  // pattern as renderTableMore above, own button/wrap/state so the two
-  // tables' pagination never interferes with each other.
+  // "Show more" (+5) then "Show all", stepping through LONG_FORM_PAGE_STEPS -
+  // its own button/wrap/state, entirely independent of the Every Short
+  // table above (which now opens a "Show all" popup instead of stepping
+  // inline - Long Form is Miradex-only and wasn't part of that change).
   function longFormRenderTableMore(totalCount) {
     var wrap = document.getElementById("longFormTableMore");
     wrap.textContent = "";
@@ -3440,58 +3559,154 @@
     });
   });
 
+  // Wires one range filterbar (its preset chips + its two date inputs) to a
+  // slice of state, scoped to containerEl so the global filterbar and the
+  // Top performers/Latest reels sub-filterbars - which all reuse the same
+  // .chip[data-range] markup - don't cross-wire each other's chips.
+  function wireRangeFilterbar(containerEl, fromInput, toInput, presetKey, customFromKey, customToKey, onChange) {
+    function setActiveChip(activeBtn) {
+      Array.prototype.forEach.call(containerEl.querySelectorAll(".chip[data-range]"), function (b) {
+        b.setAttribute("aria-pressed", b === activeBtn ? "true" : "false");
+      });
+    }
+    Array.prototype.forEach.call(containerEl.querySelectorAll(".chip[data-range]"), function (btn) {
+      btn.addEventListener("click", function () {
+        state[presetKey] = btn.dataset.range;
+        state[customFromKey] = null;
+        state[customToKey] = null;
+        var preset = computeRangePreset(state[presetKey]);
+        fromInput.value = preset.start || "";
+        toInput.value = preset.end || "";
+        setActiveChip(btn);
+        onChange();
+      });
+    });
+    // A custom date takes over from the preset chips - neither chip nor the
+    // other date input needs a value; either bound alone is a valid
+    // open-ended range. Un-press the chips so it's clear "Custom" is active.
+    function onCustomRangeChange() {
+      state[customFromKey] = fromInput.value || null;
+      state[customToKey] = toInput.value || null;
+      state[presetKey] = null;
+      toInput.min = state[customFromKey] || "";
+      fromInput.max = state[customToKey] || "";
+      if (state[customFromKey] || state[customToKey]) {
+        setActiveChip(null);
+      } else {
+        // Both custom fields cleared - fall back to "All time" rather than
+        // whatever preset chip was active before switching to custom.
+        state[presetKey] = "all";
+        setActiveChip(containerEl.querySelector('.chip[data-range="all"]'));
+      }
+      onChange();
+    }
+    fromInput.addEventListener("change", onCustomRangeChange);
+    toInput.addEventListener("change", onCustomRangeChange);
+  }
+
+  var globalFilterbarEl = document.getElementById("globalFilterbar");
   var rangeFromInput = document.getElementById("rangeFrom");
   var rangeToInput = document.getElementById("rangeTo");
+  wireRangeFilterbar(globalFilterbarEl, rangeFromInput, rangeToInput, "activePreset", "customFrom", "customTo", renderAll);
+  // The global range defaults to "Current year" (not "All time") - reflect
+  // that in the date inputs on first paint, same as a chip click would.
+  (function initGlobalRangeInputs() {
+    var preset = computeRangePreset(state.activePreset);
+    rangeFromInput.value = preset.start || "";
+    rangeToInput.value = preset.end || "";
+  })();
 
-  function setActiveChip(activeBtn) {
-    Array.prototype.forEach.call(document.querySelectorAll(".chip[data-range]"), function (b) {
-      b.setAttribute("aria-pressed", b === activeBtn ? "true" : "false");
-    });
-  }
-
-  Array.prototype.forEach.call(document.querySelectorAll(".chip[data-range]"), function (btn) {
-    btn.addEventListener("click", function () {
-      state.activePreset = btn.dataset.range;
-      state.customFrom = null;
-      state.customTo = null;
-      state.tableLimit = TABLE_PAGE_STEPS[0];
-      state.perfLimit = PERF_PAGE_STEPS[0];
-      var preset = computeRangePreset(state.activePreset);
-      rangeFromInput.value = preset.start || "";
-      rangeToInput.value = preset.end || "";
-      setActiveChip(btn);
-      renderAll();
-    });
-  });
-
-  // A custom date takes over from the preset chips - neither chip nor the
-  // other date input needs a value; either bound alone is a valid
-  // open-ended range. Un-press the chips so it's clear "Custom" is active.
-  function onCustomRangeChange() {
-    state.customFrom = rangeFromInput.value || null;
-    state.customTo = rangeToInput.value || null;
-    state.activePreset = null;
-    state.tableLimit = TABLE_PAGE_STEPS[0];
-    state.perfLimit = PERF_PAGE_STEPS[0];
-    rangeToInput.min = state.customFrom || "";
-    rangeFromInput.max = state.customTo || "";
-    if (state.customFrom || state.customTo) {
-      setActiveChip(null);
-    } else {
-      // Both custom fields cleared - fall back to "All time" rather than
-      // whatever preset chip was active before switching to custom.
-      state.activePreset = "all";
-      setActiveChip(document.querySelector('.chip[data-range="all"]'));
-    }
-    renderAll();
-  }
-  rangeFromInput.addEventListener("change", onCustomRangeChange);
-  rangeToInput.addEventListener("change", onCustomRangeChange);
+  wireRangeFilterbar(
+    document.getElementById("rankFilterbar"),
+    document.getElementById("rankRangeFrom"), document.getElementById("rankRangeTo"),
+    "topPerfPreset", "topPerfCustomFrom", "topPerfCustomTo", renderRank
+  );
+  wireRangeFilterbar(
+    document.getElementById("latestFilterbar"),
+    document.getElementById("latestRangeFrom"), document.getElementById("latestRangeTo"),
+    "latestPreset", "latestCustomFrom", "latestCustomTo", renderLatestReels
+  );
 
   document.getElementById("searchInput").addEventListener("input", function (e) {
     state.search = e.target.value;
-    state.tableLimit = TABLE_PAGE_STEPS[0];
     renderTable();
+  });
+
+  /* ===================== "Show all" popups ===================== */
+  var listModal = document.getElementById("listModal");
+  var listModalLastFocus = null;
+  function openListModal(title, sub, buildBody) {
+    listModalLastFocus = document.activeElement;
+    document.getElementById("listModalTitle").textContent = title;
+    document.getElementById("listModalSub").textContent = sub || "";
+    var body = document.getElementById("listModalBody");
+    body.textContent = "";
+    body.appendChild(buildBody());
+    listModal.classList.add("show");
+    document.getElementById("listModalClose").focus();
+  }
+  function closeListModal() {
+    listModal.classList.remove("show");
+    if (listModalLastFocus && listModalLastFocus.focus) listModalLastFocus.focus();
+  }
+  document.getElementById("listModalClose").addEventListener("click", closeListModal);
+  document.getElementById("listModalOverlay").addEventListener("click", closeListModal);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && listModal.classList.contains("show")) closeListModal();
+  });
+
+  document.getElementById("rankShowAll").addEventListener("click", function () {
+    var ranked = rankedPerfItems();
+    openListModal("Top performers", ranked.items.length + " in range, by total views", function () {
+      var grid = document.createElement("div");
+      grid.className = "perf-grid";
+      ranked.items.forEach(function (item, idx) { grid.appendChild(buildPerfCard(item, String(idx + 1), ranked.activePlatforms)); });
+      return grid;
+    });
+  });
+
+  document.getElementById("latestShowAll").addEventListener("click", function () {
+    var latest = latestReelItems();
+    openListModal("Latest reels", latest.items.length + " in range, newest first", function () {
+      var grid = document.createElement("div");
+      grid.className = "perf-grid";
+      latest.items.forEach(function (item) { grid.appendChild(buildPerfCard(item, fmtDateShort(item.r.date), latest.activePlatforms)); });
+      return grid;
+    });
+  });
+
+  document.getElementById("monthlyShowAll").addEventListener("click", function () {
+    var months = computeMonths();
+    openListModal("Monthly breakdown", months.length + " month" + (months.length === 1 ? "" : "s") + " in range", function () {
+      var wrap = document.createElement("div");
+      wrap.className = "month-list";
+      months.forEach(function (m, idx) { wrap.appendChild(buildMonthRow(m, idx === 0)); });
+      return wrap;
+    });
+  });
+
+  document.getElementById("tableShowAll").addEventListener("click", function () {
+    var withTotal = computeTableRows();
+    openListModal("Every short", withTotal.length.toLocaleString("en-US") + " matching, in the current sort order", function () {
+      var scroll = document.createElement("div");
+      scroll.className = "table-scroll";
+      var tableEl = document.createElement("table");
+      var thead = document.createElement("thead");
+      var headRow = document.createElement("tr");
+      COLUMNS.forEach(function (col) {
+        var th = document.createElement("th");
+        if (["yt", "tt", "ig", "fb"].indexOf(col.key) !== -1) th.appendChild(platformIcon(col.key, "sm"));
+        th.appendChild(document.createTextNode(col.label));
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      tableEl.appendChild(thead);
+      var tbody = document.createElement("tbody");
+      withTotal.forEach(function (item) { tbody.appendChild(buildDataRow(item)); });
+      tableEl.appendChild(tbody);
+      scroll.appendChild(tableEl);
+      return scroll;
+    });
   });
 
   var themeBtn = document.getElementById("themeToggle");
@@ -3522,20 +3737,28 @@
     renderKPIs();
     renderTrend();
     renderRank();
+    renderLatestReels();
     renderMonthly();
     renderTable();
   }
 
   // The "current"/"last completed" year+month chips just show the actual
   // year/month value (e.g. "2026") - computed once from LAST_SYNCED, same
-  // reference date the range presets themselves use.
+  // reference date the range presets themselves use. Three filterbars now
+  // share this markup (global, Top performers, Latest reels), so every
+  // matching chip gets labeled, not just the first one found.
   (function labelYearMonthChips() {
     var now = new Date(LAST_SYNCED + "T00:00:00");
     var lastMonthDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0));
-    document.querySelector('.chip[data-range="year-current"]').textContent = String(now.getFullYear());
-    document.querySelector('.chip[data-range="year-last"]').textContent = String(now.getFullYear() - 1);
-    document.querySelector('.chip[data-range="month-current"]').textContent = MONTH_NAMES[now.getMonth()];
-    document.querySelector('.chip[data-range="month-last"]').textContent = MONTH_NAMES[lastMonthDate.getUTCMonth()];
+    function labelAll(range, text) {
+      Array.prototype.forEach.call(document.querySelectorAll('.chip[data-range="' + range + '"]'), function (chip) {
+        chip.textContent = text;
+      });
+    }
+    labelAll("year-current", String(now.getFullYear()));
+    labelAll("year-last", String(now.getFullYear() - 1));
+    labelAll("month-current", MONTH_NAMES[now.getMonth()]);
+    labelAll("month-last", MONTH_NAMES[lastMonthDate.getUTCMonth()]);
   })();
 
   renderLegend();

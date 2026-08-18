@@ -1,0 +1,17 @@
+{
+  "name": "social-downloader",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bulk TikTok/Instagram/YouTube/Facebook video downloader (up to 1080p) with a paste-URLs web UI, backed by yt-dlp.",
+  "scripts": {
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "archiver": "^7.0.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
