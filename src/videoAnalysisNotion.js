@@ -1,4 +1,4 @@
-import { createNotionPage, queryNotionDatabase, richTextToString, updateNotionPage } from './notion.js';
+import { createNotionPage, queryNotionDatabase, richTextToString, extractCod, updateNotionPage } from './notion.js';
 
 // Rich text objects are capped at 2000 chars each by the Notion API - the
 // raw extraction JSON (audit trail for re-scoring, see analysis.schema.json
@@ -103,7 +103,7 @@ function parseVideoRow(cfg, page) {
   return {
     pageId: page.id,
     name: name,
-    cod: richTextToString(props['Cod']),
+    cod: extractCod(props['Cod']),
     youtubeUrl: props['YouTube URL'] ? props['YouTube URL'].url : null,
     postDate: props['Data Postare'] && props['Data Postare'].date ? props['Data Postare'].date.start : null,
     views: numberProp(props, cfg.VIEWS_FIELD_NAME),

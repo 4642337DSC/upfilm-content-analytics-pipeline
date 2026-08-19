@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { queryNotionDatabase, richTextToString, buildShortsFilter } from './notion.js';
+import { queryNotionDatabase, richTextToString, extractCod, buildShortsFilter } from './notion.js';
 import { isoDate } from './util.js';
 
 // "YouTube"/"Facebook"/"Instagram"/"TikTok" (as stored in the Channel Stats
@@ -20,7 +20,7 @@ export function buildDashboardRow(cfg, page, thumbMap) {
   var postDate = props['Data Postare'] && props['Data Postare'].date ? props['Data Postare'].date.start : null;
   if (!postDate) return null; // dashboard places every short in time - skip anything without a post date
   var name = (props['Name'].title || []).map(function (t) { return t.plain_text; }).join('').trim();
-  var cod = richTextToString(props['Cod']);
+  var cod = extractCod(props['Cod']);
   var igLink = props['Instagram URL'] ? props['Instagram URL'].url : null;
   var ytLink = props['YouTube URL'] ? props['YouTube URL'].url : null;
   var fbLink = props['Facebook URL'] ? props['Facebook URL'].url : null;
@@ -206,7 +206,7 @@ export function buildLongFormRow(cfg, page, thumbMap) {
   var postDate = props['Data Postare'] && props['Data Postare'].date ? props['Data Postare'].date.start : null;
   if (!postDate) return null;
   var name = (props['Name'].title || []).map(function (t) { return t.plain_text; }).join('').trim();
-  var cod = richTextToString(props['Cod']);
+  var cod = extractCod(props['Cod']);
   var link = props['YouTube URL'] ? props['YouTube URL'].url : null;
   return [
     name,

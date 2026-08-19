@@ -34,7 +34,7 @@ export async function fetchNotionRows(cfg, tipValue) {
 export function parseNotionRow(page) {
   var props = page.properties;
   var name = (props['Name'].title || []).map(function (t) { return t.plain_text; }).join('');
-  var cod = richTextToString(props['Cod']); // "Cod" is a plain text (rich_text) property, same shape as "Text"
+  var cod = extractCod(props['Cod']); // "Cod" is rich_text on ISOGREEN/Miradex but a formula (string) on Darcom
   var text = richTextToString(props['Text']);
   var dateStart = props['Data Postare'] && props['Data Postare'].date ? props['Data Postare'].date.start : null;
   var youtubeUrl = props['YouTube URL'] ? props['YouTube URL'].url : null;
@@ -56,6 +56,20 @@ export function extractThumbnailUrl(prop) {
 export function richTextToString(prop) {
   if (!prop || !prop.rich_text) return '';
   return prop.rich_text.map(function (t) { return t.plain_text; }).join('');
+}
+
+// "Cod" was always rich_text until Darcom, whose "Cod" is a formula
+// (e.g. "26-116") instead - notion.js's parseNotionRow used
+// richTextToString unconditionally, so `row.cod` silently came back ''
+// for every Darcom row (a formula property has no .rich_text field at
+// all), which in turn made syncThumbnails skip every row outright (its
+// `if (!row.cod) continue` guard) - zero thumbnails ever downloaded,
+// with no error to point at why.
+export function extractCod(prop) {
+  if (!prop) return '';
+  if (prop.rich_text) return richTextToString(prop);
+  if (prop.formula && prop.formula.type === 'string') return prop.formula.string || '';
+  return '';
 }
 
 // Notion writes used to be fire-and-forget (fetchJson's result was never
