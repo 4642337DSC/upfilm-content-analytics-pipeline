@@ -124,6 +124,35 @@ export async function syncAllViews() {
     } catch (e) { console.log('Long Form sync failed: ' + e); }
   }
 
+  // Same-database Long Form pass (Darcom): unlike Miradex's Long Form
+  // block above, Darcom has no separate Long Form database - Short and
+  // Long content share one Video database, distinguished only by "Tip".
+  // So this re-runs the normal YouTube/Facebook/Instagram sync (same
+  // field names, same database) against Tip=Long rows instead of Tip=
+  // Short, using fetchNotionRows' tipValue override rather than pointing
+  // at a different NOTION_DATABASE_ID/field-name config like Miradex's
+  // pass does. Gated on its own flag so every other client's pipeline is
+  // unaffected (LONG_FORM_NOTION_DATABASE_ID stays the Miradex-only path).
+  if (cfg.LONG_FORM_SAME_DATABASE === 'true') {
+    var lfCfg2 = Object.assign({}, cfg, {
+      // Same reasoning as Miradex's Long Form pass above: a multi-minute
+      // video's 3s-window hook rate/retention checkpoint carries no
+      // signal (everyone who clicked is still watching), so this reuses
+      // the same LONG_FORM_RETENTION_* config Miradex's pass already
+      // defines - written to "YT Retention @30s", not "YT Retention @3s".
+      RETENTION_WINDOW_SECONDS: cfg.LONG_FORM_RETENTION_WINDOW_SECONDS,
+      RETENTION_WINDOW_FIELD_NAME: cfg.LONG_FORM_RETENTION_FIELD_NAME,
+      SYNC_TITLE_FROM_YOUTUBE: true
+    });
+    try {
+      var lfRows2 = await fetchNotionRows(lfCfg2, 'Long');
+      var lfYt2 = await syncYouTube(lfCfg2, lfRows2);
+      var lfFb2 = fbEnabled ? await syncFacebook(lfCfg2, lfRows2) : null;
+      var lfIg2 = fbEnabled ? await syncInstagram(lfCfg2, lfRows2, {}) : null;
+      await writeUpdates(lfCfg2, lfRows2, lfYt2, lfFb2, lfIg2, null);
+    } catch (e) { console.log('Long Form (same-database) sync failed: ' + e); }
+  }
+
   try { await syncAudience(cfg); } catch (e) { console.log('Audience sync failed: ' + e); }
 
   var oldestDate = oldestPostDate(rows);

@@ -10,13 +10,13 @@ function notionHeaders(cfg) {
   };
 }
 
-export async function fetchNotionRows(cfg) {
+export async function fetchNotionRows(cfg, tipValue) {
   var rows = [];
   var cursor = null;
   do {
     var payload = {
       page_size: 100,
-      filter: buildShortsFilter(cfg)
+      filter: buildShortsFilter(cfg, tipValue)
     };
     if (cursor) payload.start_cursor = cursor;
     var data = await fetchJson('https://api.notion.com/v1/databases/' + cfg.NOTION_DATABASE_ID + '/query', {
@@ -322,7 +322,8 @@ function diceCoefficient(a, b) {
 
 // ===== Cross-platform report/write helpers =====
 
-export function buildShortsFilter(cfg) {
+export function buildShortsFilter(cfg, tipValue) {
+  var tip = tipValue || 'Short';
   var and = [{ property: 'Postat?', checkbox: { equals: true } }];
   if (cfg.NOTION_FILTER_TIP) {
     // Most clients' "Tip" property is multi_select (a row can be tagged
@@ -330,9 +331,14 @@ export function buildShortsFilter(cfg) {
     // instead - cfg.TIP_PROPERTY_TYPE picks the matching Notion filter
     // shape per client. Defaults to multi_select so every existing
     // client's behavior/tests are unaffected.
+    //
+    // tipValue lets a caller target "Long" instead of the default "Short"
+    // - used by sync.js's same-database Long Form pass (Darcom), which
+    // reuses this same filter/database rather than Miradex's separate
+    // Long Form database.
     var tipFilter = cfg.TIP_PROPERTY_TYPE === 'select'
-      ? { property: 'Tip', select: { equals: 'Short' } }
-      : { property: 'Tip', multi_select: { contains: 'Short' } };
+      ? { property: 'Tip', select: { equals: tip } }
+      : { property: 'Tip', multi_select: { contains: tip } };
     and.unshift(tipFilter);
   }
   return { and: and };
