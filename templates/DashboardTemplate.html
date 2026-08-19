@@ -1116,6 +1116,31 @@
     <section class="card">
       <div class="card-head">
         <div class="card-head-text">
+          <div class="card-title">Latest reels</div>
+          <div class="card-note" id="latestNote">Most recent shorts posted</div>
+        </div>
+        <button class="show-more-btn" id="latestShowAll" type="button">Show all</button>
+      </div>
+      <div class="filterbar sub" id="latestFilterbar" role="group" aria-label="Latest reels date range">
+        <span class="flabel">Range</span>
+        <button class="chip" data-range="all" type="button" aria-pressed="true">All time</button>
+        <button class="chip" data-range="year-current" type="button" aria-pressed="false">Current year</button>
+        <button class="chip" data-range="year-last" type="button" aria-pressed="false">Last completed year</button>
+        <button class="chip" data-range="365" type="button" aria-pressed="false">Last year</button>
+        <button class="chip" data-range="month-current" type="button" aria-pressed="false">Current month</button>
+        <button class="chip" data-range="month-last" type="button" aria-pressed="false">Last completed month</button>
+        <button class="chip" data-range="30" type="button" aria-pressed="false">Last 30 days</button>
+        <button class="chip" data-range="90" type="button" aria-pressed="false">Last 90 days</button>
+        <input class="date-input" id="latestRangeFrom" type="date" aria-label="Latest reels custom range: from date" />
+        <span class="date-sep">–</span>
+        <input class="date-input" id="latestRangeTo" type="date" aria-label="Latest reels custom range: to date" />
+      </div>
+      <div class="perf-grid" id="latestList"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-head-text">
           <div class="card-title">Top performers</div>
           <div class="card-note" id="rankNote">Ranked by total views</div>
         </div>
@@ -1137,31 +1162,6 @@
       </div>
       <div class="perf-filters" id="perfFilters" role="group" aria-label="Filter by platform"></div>
       <div class="perf-grid" id="rankList"></div>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <div class="card-head-text">
-          <div class="card-title">Latest reels</div>
-          <div class="card-note" id="latestNote">Most recent shorts posted</div>
-        </div>
-        <button class="show-more-btn" id="latestShowAll" type="button">Show all</button>
-      </div>
-      <div class="filterbar sub" id="latestFilterbar" role="group" aria-label="Latest reels date range">
-        <span class="flabel">Range</span>
-        <button class="chip" data-range="all" type="button" aria-pressed="true">All time</button>
-        <button class="chip" data-range="year-current" type="button" aria-pressed="false">Current year</button>
-        <button class="chip" data-range="year-last" type="button" aria-pressed="false">Last completed year</button>
-        <button class="chip" data-range="365" type="button" aria-pressed="false">Last year</button>
-        <button class="chip" data-range="month-current" type="button" aria-pressed="false">Current month</button>
-        <button class="chip" data-range="month-last" type="button" aria-pressed="false">Last completed month</button>
-        <button class="chip" data-range="30" type="button" aria-pressed="false">Last 30 days</button>
-        <button class="chip" data-range="90" type="button" aria-pressed="false">Last 90 days</button>
-        <input class="date-input" id="latestRangeFrom" type="date" aria-label="Latest reels custom range: from date" />
-        <span class="date-sep">–</span>
-        <input class="date-input" id="latestRangeTo" type="date" aria-label="Latest reels custom range: to date" />
-      </div>
-      <div class="perf-grid" id="latestList"></div>
     </section>
   </div>
 
