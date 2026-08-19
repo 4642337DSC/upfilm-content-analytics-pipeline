@@ -556,13 +556,13 @@
 
   /* ---------- monthly breakdown ---------- */
   .month-sort { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-  .month-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
-  @media (max-width: 860px) {
-    .month-list { grid-template-columns: repeat(2, 1fr); }
-  }
-  @media (max-width: 560px) {
-    .month-list { grid-template-columns: 1fr; }
-  }
+  /* auto-fit (not a fixed repeat(3) + viewport breakpoints) so the column
+     count tracks the card's actual rendered width - this card now shares a
+     row with Channel benchmarks, so it's roughly half as wide as a
+     viewport-based breakpoint would assume, and it's also reused at full
+     card width inside the "Show all" popup. A fixed column count sized for
+     one context wrapped month labels awkwardly in the other. */
+  .month-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(225px, 1fr)); gap: 12px; margin-top: 14px; }
   .month-row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; align-self: start; }
   .month-row summary {
     list-style: none;
@@ -579,7 +579,7 @@
   .month-summary-label { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .month-caret { color: var(--muted); font-size: 11px; transition: transform 0.12s ease; flex: none; }
   .month-row[open] .month-caret { transform: rotate(90deg); }
-  .month-label { font-family: var(--font-display); font-weight: 700; font-size: 13.5px; }
+  .month-label { font-family: var(--font-display); font-weight: 700; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .month-mix { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
   .month-count { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
   .month-total { font-family: var(--font-mono); font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; flex: none; }
@@ -1116,6 +1116,31 @@
     <section class="card">
       <div class="card-head">
         <div class="card-head-text">
+          <div class="card-title">Latest reels</div>
+          <div class="card-note" id="latestNote">Most recent shorts posted</div>
+        </div>
+        <button class="show-more-btn" id="latestShowAll" type="button">Show all</button>
+      </div>
+      <div class="filterbar sub" id="latestFilterbar" role="group" aria-label="Latest reels date range">
+        <span class="flabel">Range</span>
+        <button class="chip" data-range="all" type="button" aria-pressed="true">All time</button>
+        <button class="chip" data-range="year-current" type="button" aria-pressed="false">Current year</button>
+        <button class="chip" data-range="year-last" type="button" aria-pressed="false">Last completed year</button>
+        <button class="chip" data-range="365" type="button" aria-pressed="false">Last year</button>
+        <button class="chip" data-range="month-current" type="button" aria-pressed="false">Current month</button>
+        <button class="chip" data-range="month-last" type="button" aria-pressed="false">Last completed month</button>
+        <button class="chip" data-range="30" type="button" aria-pressed="false">Last 30 days</button>
+        <button class="chip" data-range="90" type="button" aria-pressed="false">Last 90 days</button>
+        <input class="date-input" id="latestRangeFrom" type="date" aria-label="Latest reels custom range: from date" />
+        <span class="date-sep">–</span>
+        <input class="date-input" id="latestRangeTo" type="date" aria-label="Latest reels custom range: to date" />
+      </div>
+      <div class="perf-grid" id="latestList"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div class="card-head-text">
           <div class="card-title">Top performers</div>
           <div class="card-note" id="rankNote">Ranked by total views</div>
         </div>
@@ -1137,31 +1162,6 @@
       </div>
       <div class="perf-filters" id="perfFilters" role="group" aria-label="Filter by platform"></div>
       <div class="perf-grid" id="rankList"></div>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <div class="card-head-text">
-          <div class="card-title">Latest reels</div>
-          <div class="card-note" id="latestNote">Most recent shorts posted</div>
-        </div>
-        <button class="show-more-btn" id="latestShowAll" type="button">Show all</button>
-      </div>
-      <div class="filterbar sub" id="latestFilterbar" role="group" aria-label="Latest reels date range">
-        <span class="flabel">Range</span>
-        <button class="chip" data-range="all" type="button" aria-pressed="true">All time</button>
-        <button class="chip" data-range="year-current" type="button" aria-pressed="false">Current year</button>
-        <button class="chip" data-range="year-last" type="button" aria-pressed="false">Last completed year</button>
-        <button class="chip" data-range="365" type="button" aria-pressed="false">Last year</button>
-        <button class="chip" data-range="month-current" type="button" aria-pressed="false">Current month</button>
-        <button class="chip" data-range="month-last" type="button" aria-pressed="false">Last completed month</button>
-        <button class="chip" data-range="30" type="button" aria-pressed="false">Last 30 days</button>
-        <button class="chip" data-range="90" type="button" aria-pressed="false">Last 90 days</button>
-        <input class="date-input" id="latestRangeFrom" type="date" aria-label="Latest reels custom range: from date" />
-        <span class="date-sep">–</span>
-        <input class="date-input" id="latestRangeTo" type="date" aria-label="Latest reels custom range: to date" />
-      </div>
-      <div class="perf-grid" id="latestList"></div>
     </section>
   </div>
 
