@@ -21,6 +21,10 @@ export function getConfig() {
     FB_PAGE_ACCESS_TOKEN: process.env.FB_PAGE_ACCESS_TOKEN || null,
     ZERNIO_API_KEY: process.env.ZERNIO_API_KEY || null,
     ZERNIO_TIKTOK_ACCOUNT_ID: process.env.ZERNIO_TIKTOK_ACCOUNT_ID || null,
+    // Only used by scripts/discover-tiktok-urls.js - falls back to
+    // CHANNEL_HANDLE since every client today uses the same handle across
+    // platforms.
+    TIKTOK_HANDLE: process.env.TIKTOK_HANDLE || null,
     CHANNEL_STATS_DATABASE_ID: process.env.CHANNEL_STATS_DATABASE_ID || null,
     MONTHLY_VIEWS_DATABASE_ID: process.env.MONTHLY_VIEWS_DATABASE_ID || null,
     DAILY_VIEWS_DATABASE_ID: process.env.DAILY_VIEWS_DATABASE_ID || null,
