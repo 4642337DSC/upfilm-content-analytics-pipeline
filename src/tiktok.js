@@ -1,4 +1,4 @@
-import { fetchJson } from './http.js';
+import { fetchText } from './http.js';
 import { buildPlatformReport } from './notion.js';
 
 // TikTok has no listing API for pre-existing posts (Zernio's /posts edge only
@@ -16,8 +16,19 @@ export function extractTikTokId(url) {
 // come back null for externally-synced posts - not available in practice.
 export async function fetchTikTokAnalytics(cfg, videoId) {
   var url = 'https://zernio.com/api/v1/analytics?postId=' + videoId + '&accountId=' + cfg.ZERNIO_TIKTOK_ACCOUNT_ID;
-  var data = await fetchJson(url, { headers: { Authorization: 'Bearer ' + cfg.ZERNIO_API_KEY } });
-  if (!data.analytics || typeof data.analytics.views !== 'number') return null;
+  var res = await fetchText(url, { headers: { Authorization: 'Bearer ' + cfg.ZERNIO_API_KEY } });
+  var data;
+  try { data = res.json(); } catch (e) {
+    console.log('Zernio analytics: non-JSON response for postId ' + videoId + ' (status ' + res.status + '): ' + res.text.slice(0, 500));
+    return null;
+  }
+  if (!data.analytics || typeof data.analytics.views !== 'number') {
+    // Was silently swallowed before - a single video (24-S23) fails every
+    // run while every other row with a URL succeeds, and there's no way to
+    // tell why without seeing Zernio's actual response body.
+    console.log('Zernio analytics: no usable data for postId ' + videoId + ' (status ' + res.status + '): ' + res.text.slice(0, 500));
+    return null;
+  }
   var a = data.analytics;
   return {
     views: a.views,
