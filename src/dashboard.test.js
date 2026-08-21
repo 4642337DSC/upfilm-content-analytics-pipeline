@@ -18,9 +18,9 @@ test('buildDashboardRow reads view counts from cfg-configured field names', () =
     'Name': { title: [{ plain_text: 'Test Short' }] },
     'Cod': { rich_text: [{ plain_text: 'M001' }] },
     'Instagram URL': { url: 'https://instagram.com/p/x' },
-    'YouTube URL': null,
+    'YouTube URL': { url: 'https://youtube.com/shorts/x' },
     'Facebook URL': null,
-    'TikTok URL': null,
+    'TikTok URL': { url: 'https://tiktok.com/@x/video/1' },
     'V7Z - Yt Shorts': { number: 10 },
     'V7Z - Fb': { number: 20 },
     'V7Z - Insta': { number: 30 },
@@ -32,7 +32,8 @@ test('buildDashboardRow reads view counts from cfg-configured field names', () =
 
   assert.deepEqual(row, [
     'Test Short', 'M001', 10, 20, 30, 40,
-    '2026-08-01', 'https://instagram.com/p/x', 'hello', 'thumb.jpg'
+    '2026-08-01', 'https://instagram.com/p/x', 'hello', 'thumb.jpg',
+    'https://youtube.com/shorts/x', null, 'https://instagram.com/p/x', 'https://tiktok.com/@x/video/1'
   ]);
 });
 

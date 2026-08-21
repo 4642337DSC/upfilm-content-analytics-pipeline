@@ -1014,6 +1014,8 @@
     padding-top: 2px;
   }
   .detail-modal-footer a, .detail-modal-footer button {
+    display: inline-flex;
+    align-items: center;
     font-family: var(--font-display);
     font-size: 12.5px;
     font-weight: 600;
@@ -1290,16 +1292,20 @@
   "use strict";
 
   /* ===================== DATA ===================== */
-  // [name, cod, youtube, facebook, instagram, tiktok, postDate, link, transcript, thumbUrl]
+  // [name, cod, youtube, facebook, instagram, tiktok, postDate, link, transcript, thumbUrl, ytLink, fbLink, igLink, ttLink]
   // "link" is already resolved server-side to the best available platform
-  // URL (Instagram preferred, falling back to YouTube/Facebook/TikTok) -
+  // URL (Instagram preferred, falling back to YouTube/Facebook/TikTok) - used
+  // by the table's single-icon link column. The per-platform ytLink/fbLink/
+  // igLink/ttLink are the raw per-platform URLs (any of which may be null),
+  // used by the video detail popup to show every platform the short is on -
   // see fetchDashboardRows in src/dashboard.js.
   var RAW = /*__RAW_DATA__*/;
 
   var DATA = RAW.map(function (r) {
     return {
       name: r[0], cod: r[1], yt: r[2], fb: r[3], ig: r[4], tt: r[5], date: r[6], link: r[7], transcript: r[8], thumb: r[9],
-      geminiExtracted: !!r[10], claudeScored: !!r[11]
+      links: { yt: r[10], fb: r[11], ig: r[12], tt: r[13] },
+      geminiExtracted: !!r[14], claudeScored: !!r[15]
     };
   });
   var DATA_BY_COD = {};
@@ -3512,15 +3518,19 @@
 
     body.appendChild(buildClaudeSection(detail));
 
-    if (r.link) {
+    var footerLinks = PLATFORMS.filter(function (p) { return r.links && r.links[p.key]; });
+    if (footerLinks.length) {
       var footer = document.createElement("div");
       footer.className = "detail-modal-footer";
-      var openLink = document.createElement("a");
-      openLink.href = r.link;
-      openLink.target = "_blank";
-      openLink.rel = "noopener noreferrer";
-      openLink.textContent = "Open short ↗";
-      footer.appendChild(openLink);
+      footerLinks.forEach(function (p) {
+        var openLink = document.createElement("a");
+        openLink.href = r.links[p.key];
+        openLink.target = "_blank";
+        openLink.rel = "noopener noreferrer";
+        openLink.appendChild(platformIcon(p.key, "sm"));
+        openLink.appendChild(document.createTextNode(p.label + " ↗"));
+        footer.appendChild(openLink);
+      });
       body.appendChild(footer);
     }
 

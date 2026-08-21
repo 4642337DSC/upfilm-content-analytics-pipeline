@@ -36,7 +36,11 @@ export function buildDashboardRow(cfg, page, thumbMap) {
     postDate,
     link,
     richTextToString(props['Transcript']) || null,
-    thumbMap[cod] || null
+    thumbMap[cod] || null,
+    ytLink,
+    fbLink,
+    igLink,
+    ttLink
   ];
 }
 
@@ -171,7 +175,7 @@ export async function fetchDashboardRows(cfg, thumbMap) {
     cursor = data.has_more ? data.next_cursor : null;
   } while (cursor);
 
-  // Appended onto the fixed 10-element row (rather than folded into
+  // Appended onto the fixed 14-element row (rather than folded into
   // buildDashboardRow) since these two flags depend on the Video Analysis
   // DB, which is only fetched here, after every dashboard row already
   // exists - same "row[1]" cod-matching this function already does for
