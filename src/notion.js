@@ -40,8 +40,9 @@ export function parseNotionRow(page) {
   var youtubeUrl = props['YouTube URL'] ? props['YouTube URL'].url : null;
   var tiktokUrl = props['TikTok URL'] ? props['TikTok URL'].url : null;
   var instagramUrl = props['Instagram URL'] ? props['Instagram URL'].url : null;
+  var facebookUrl = props['Facebook URL'] ? props['Facebook URL'].url : null;
   var thumbnailUrl = extractThumbnailUrl(props['Thumbnail']);
-  return { pageId: page.id, name: name, cod: cod, text: text, postDate: dateStart, youtubeUrl: youtubeUrl, tiktokUrl: tiktokUrl, instagramUrl: instagramUrl, thumbnailUrl: thumbnailUrl };
+  return { pageId: page.id, name: name, cod: cod, text: text, postDate: dateStart, youtubeUrl: youtubeUrl, tiktokUrl: tiktokUrl, instagramUrl: instagramUrl, facebookUrl: facebookUrl, thumbnailUrl: thumbnailUrl };
 }
 
 export function extractThumbnailUrl(prop) {
