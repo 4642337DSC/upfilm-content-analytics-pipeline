@@ -39,6 +39,11 @@ jobs:
           FB_FIELD_NAME: ${{ matrix.client == 'miradex' && 'V7Z - Fb' || 'Facebook' }}
           IG_FIELD_NAME: ${{ matrix.client == 'miradex' && 'V7Z - Insta' || 'Instagram' }}
           TT_FIELD_NAME: ${{ matrix.client == 'miradex' && 'V7Z - TikTok' || 'TikTok' }}
+          # Darcom-only: Short and Long content share one Video database
+          # (Tip=Short/Long), unlike Miradex's separate Long Form database -
+          # see src/sync.js's same-database Long Form pass for why this
+          # can't just reuse LONG_FORM_NOTION_DATABASE_ID.
+          LONG_FORM_SAME_DATABASE: ${{ matrix.client == 'darcomenergy' && 'true' || '' }}
           # Shared across clients - same Google Cloud project / Notion integration / Zernio account.
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
