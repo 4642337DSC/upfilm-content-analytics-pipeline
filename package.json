@@ -19,6 +19,7 @@
     "backfill:clean-instagram-zero-views": "node scripts/backfill-clean-instagram-zero-views.js",
     "backfill:clean-facebook-zero-views": "node scripts/backfill-clean-facebook-zero-views.js",
     "backfill:create-video-analysis-db": "node scripts/backfill-create-video-analysis-db.js",
+    "discover:tiktok": "node scripts/discover-tiktok-urls.js",
     "analyze:videos": "node src/videoAnalysisPipeline.js",
     "analyze:extract": "node src/videoAnalysisPipeline.js --extract-only",
     "analyze:validate": "node src/videoAnalysisValidate.js"
