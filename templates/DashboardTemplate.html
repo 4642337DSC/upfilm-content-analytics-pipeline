@@ -364,7 +364,12 @@
      breakdown/Channel benchmarks) - collapses to one column under the
      existing 860px mobile breakpoint, same as .kpi-grid. */
   .card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 22px; }
-  .card-row > .card { margin-bottom: 0; }
+  /* Grid items default to min-width:auto, so a card whose content has a
+     large min-content width (the benchmarks table's min-width:760px, the
+     month-list's minmax(225px,...) columns) would otherwise refuse to
+     shrink below that width - ballooning the card past its 1fr track and
+     dragging the whole page into horizontal overflow on mobile. */
+  .card-row > .card { margin-bottom: 0; min-width: 0; }
   @media (max-width: 860px) { .card-row { grid-template-columns: 1fr; } }
   /* Groups title+note so a header can also carry a "Show all" button
      without the button splitting away from the title via space-between. */
@@ -1044,6 +1049,58 @@
     flex-wrap: wrap;
     gap: 8px;
   }
+
+  /* ---------- mobile ---------- */
+  @media (max-width: 640px) {
+    .wrap { padding: 18px 14px 56px; }
+    .masthead { gap: 12px; padding-bottom: 16px; margin-bottom: 18px; }
+    .client-name { font-size: 23px; }
+    .card { padding: 16px 14px; margin-bottom: 16px; }
+    .card-row { gap: 16px; margin-bottom: 16px; }
+    .kpi { padding: 14px 14px 12px; }
+    .kpi-value { font-size: 21px; }
+    /* Two guaranteed columns down to the narrowest phones (320px), instead
+       of the 148px desktop minimum which can collapse to one column and
+       leave the reels grid feeling like a single scrolling list. */
+    .perf-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 12px; }
+    .perf-thumb-ph-letter { font-size: 34px; }
+
+    /* Video / list / transcript pop-ups become full-screen sheets instead
+       of centered dialogs - a 24px-padded centered card wastes too much of
+       a phone's width and leaves too little room for the stats it holds. */
+    .detail-modal, .transcript-modal { padding: 0; }
+    .detail-modal-panel, .transcript-modal-panel, .list-modal-panel {
+      max-width: 100%;
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+      border-radius: 0;
+      border-left: none;
+      border-right: none;
+    }
+    .detail-modal-head, .transcript-modal-head {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--surface);
+      padding: 14px 16px 12px;
+    }
+    .detail-modal-thumb { width: 56px; height: 100px; }
+    .detail-modal-title { font-size: 14px; }
+    .detail-modal-close, .transcript-modal-close { width: 34px; height: 34px; font-size: 14px; }
+    .detail-modal-body, .transcript-modal-body { padding: 14px 16px 24px; gap: 16px; }
+    .detail-modal-footer { flex-wrap: wrap; }
+    .detail-modal-footer a, .detail-modal-footer button {
+      flex: 1 1 calc(50% - 5px);
+      justify-content: center;
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+  }
+
+  /* Keeps the background from scrolling behind a full-screen mobile
+     pop-up; :has() degrades harmlessly in browsers that lack it. */
+  body:has(.detail-modal.show, .transcript-modal.show) { overflow: hidden; }
 </style>
 </head>
 <body>
@@ -1469,7 +1526,9 @@
     latestPreset: "all", latestCustomFrom: null, latestCustomTo: null
   };
   var TABLE_DEFAULT_LIMIT = 5;
-  var PERF_DEFAULT_LIMIT = 3;
+  // On mobile the perf-grid is 2 columns, so 3 items leaves an odd one
+  // dangling on its own row - 4 fills both rows evenly.
+  var PERF_DEFAULT_LIMIT = (window.matchMedia && window.matchMedia("(max-width: 640px)").matches) ? 4 : 3;
   var MONTHLY_DEFAULT_LIMIT = 12;
 
   // { start, end } for a named preset key - end === null means "open,
