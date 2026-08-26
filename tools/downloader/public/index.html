@@ -13,10 +13,16 @@
 
   <textarea id="urls" placeholder="https://www.tiktok.com/@user/video/123...&#10;https://www.instagram.com/reel/...&#10;https://www.youtube.com/watch?v=..." rows="8"></textarea>
 
+  <label class="path-label" for="path">Save to</label>
+  <input id="path" type="text" list="path-history" autocomplete="off" spellcheck="false" />
+  <datalist id="path-history"></datalist>
+
   <div class="actions">
     <button id="start" type="button">Download</button>
     <span id="error" class="error"></span>
   </div>
+
+  <div id="skipped" class="skipped-notice" hidden></div>
 
   <section id="results" hidden>
     <div class="results-header">

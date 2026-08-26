@@ -1,9 +1,50 @@
 var urlsEl = document.getElementById('urls');
+var pathEl = document.getElementById('path');
+var pathHistoryEl = document.getElementById('path-history');
 var startBtn = document.getElementById('start');
 var errorEl = document.getElementById('error');
+var skippedEl = document.getElementById('skipped');
 var resultsEl = document.getElementById('results');
 var itemsEl = document.getElementById('items');
 var zipEl = document.getElementById('zip');
+
+var PATH_HISTORY_KEY = 'downloader.pathHistory';
+var PATH_HISTORY_MAX = 10;
+
+function loadPathHistory() {
+  try {
+    var raw = localStorage.getItem(PATH_HISTORY_KEY);
+    var list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function renderPathHistory(list) {
+  pathHistoryEl.innerHTML = '';
+  list.forEach(function (p) {
+    var opt = document.createElement('option');
+    opt.value = p;
+    pathHistoryEl.appendChild(opt);
+  });
+}
+
+function rememberPath(p) {
+  if (!p) return;
+  var list = loadPathHistory().filter(function (existing) { return existing !== p; });
+  list.unshift(p);
+  list = list.slice(0, PATH_HISTORY_MAX);
+  try { localStorage.setItem(PATH_HISTORY_KEY, JSON.stringify(list)); } catch (e) {}
+  renderPathHistory(list);
+}
+
+renderPathHistory(loadPathHistory());
+
+fetch('/api/default-path')
+  .then(function (res) { return res.json(); })
+  .then(function (data) { if (data && data.path) pathEl.value = data.path; })
+  .catch(function () {});
 
 function statusLabel(item) {
   if (item.status === 'queued') return 'Queued';
@@ -48,8 +89,16 @@ function renderItem(jobId, item) {
   }
 }
 
+function formatSkipped(skipped) {
+  if (!skipped || !skipped.length) return '';
+  return 'Skipped ' + skipped.length + ' line(s): ' +
+    skipped.map(function (s) { return '"' + s.line + '" (' + s.reason + ')'; }).join(', ');
+}
+
 function startJob() {
   errorEl.textContent = '';
+  skippedEl.hidden = true;
+  skippedEl.textContent = '';
   var urls = urlsEl.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
   if (!urls.length) {
     errorEl.textContent = 'Paste at least one URL.';
@@ -59,18 +108,29 @@ function startJob() {
   startBtn.disabled = true;
   startBtn.textContent = 'Starting...';
 
+  var chosenPath = pathEl.value.trim();
+
   fetch('/api/jobs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ urls: urls })
+    body: JSON.stringify({ urls: urls, path: chosenPath })
   })
     .then(function (res) {
       return res.json().then(function (body) {
-        if (!res.ok) throw new Error(body.error || 'Request failed.');
+        if (!res.ok) {
+          var err = new Error(body.error || 'Request failed.');
+          err.skipped = body.skipped;
+          throw err;
+        }
         return body;
       });
     })
     .then(function (job) {
+      rememberPath(chosenPath);
+      if (job.skipped && job.skipped.length) {
+        skippedEl.hidden = false;
+        skippedEl.textContent = formatSkipped(job.skipped);
+      }
       itemsEl.innerHTML = '';
       resultsEl.hidden = false;
       zipEl.hidden = true;
@@ -104,6 +164,10 @@ function startJob() {
     })
     .catch(function (err) {
       errorEl.textContent = err.message;
+      if (err.skipped && err.skipped.length) {
+        skippedEl.hidden = false;
+        skippedEl.textContent = formatSkipped(err.skipped);
+      }
       startBtn.disabled = false;
       startBtn.textContent = 'Download';
     });

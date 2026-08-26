@@ -8,6 +8,7 @@
   --accent: #4f8cff;
   --ok: #3ecf8e;
   --err: #ff6161;
+  --warn: #e2a03f;
 }
 
 * { box-sizing: border-box; }
@@ -41,6 +42,24 @@ textarea {
   resize: vertical;
 }
 
+.path-label {
+  display: block;
+  margin-top: 12px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+#path {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 10px 12px;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 .actions {
   margin-top: 12px;
   display: flex;
@@ -62,6 +81,12 @@ button {
 button:disabled { opacity: 0.6; cursor: default; }
 
 .error { color: var(--err); font-size: 13px; }
+
+.skipped-notice {
+  color: var(--warn);
+  font-size: 13px;
+  margin-top: 10px;
+}
 
 #results { margin-top: 32px; }
 

@@ -18,27 +18,70 @@ var app = express();
 app.use(express.json());
 app.use(express.static(PUBLIC_DIR));
 
-function parseUrls(raw) {
-  if (!Array.isArray(raw)) return [];
-  var seen = new Set();
-  var out = [];
-  raw.forEach(function (line) {
-    var url = String(line || '').trim();
-    if (!url || seen.has(url)) return;
-    if (!/^https?:\/\//i.test(url)) return;
-    seen.add(url);
-    out.push(url);
-  });
-  return out;
+// Recognized without a scheme so a bare address-bar copy (browsers hide
+// "https://") or a "www.foo.com/..." paste isn't silently dropped below.
+var KNOWN_DOMAINS = /^(www\.)?(tiktok\.com|vm\.tiktok\.com|vt\.tiktok\.com|instagram\.com|youtube\.com|youtu\.be|m\.youtube\.com|facebook\.com|fb\.watch|m\.facebook\.com)\b/i;
+
+function normalizeLine(rawLine) {
+  var line = String(rawLine || '').trim();
+  if (!line) return '';
+  // strip a leading bullet/dash/number ("- ", "* ", "1. ", "1) ") from pasted lists
+  line = line.replace(/^(?:[-*•–—]|\d+[.)])\s+/, '').trim();
+  if (line && !/^https?:\/\//i.test(line) && KNOWN_DOMAINS.test(line)) {
+    line = 'https://' + line;
+  }
+  return line;
 }
 
+// Returns { urls, skipped } instead of silently dropping lines - every
+// pasted line either becomes a download or a reported reason why not.
+function parseUrls(raw) {
+  if (!Array.isArray(raw)) return { urls: [], skipped: [] };
+  var seen = new Set();
+  var urls = [];
+  var skipped = [];
+  raw.forEach(function (rawLine) {
+    var original = String(rawLine || '').trim();
+    if (!original) return;
+    var normalized = normalizeLine(original);
+    if (!normalized || !/^https?:\/\//i.test(normalized)) {
+      skipped.push({ line: original, reason: 'not a recognized URL' });
+      return;
+    }
+    if (seen.has(normalized)) {
+      skipped.push({ line: original, reason: 'duplicate' });
+      return;
+    }
+    seen.add(normalized);
+    urls.push(normalized);
+  });
+  return { urls: urls, skipped: skipped };
+}
+
+app.get('/api/default-path', function (req, res) {
+  res.json({ path: DOWNLOADS_DIR });
+});
+
 app.post('/api/jobs', function (req, res) {
-  var urls = parseUrls(req.body && req.body.urls);
-  if (!urls.length) return res.status(400).json({ error: 'No valid http(s) URLs supplied.' });
+  var parsed = parseUrls(req.body && req.body.urls);
+  var urls = parsed.urls;
+  if (!urls.length) return res.status(400).json({ error: 'No valid http(s) URLs supplied.', skipped: parsed.skipped });
   if (urls.length > MAX_URLS_PER_JOB) return res.status(400).json({ error: 'Too many URLs (max ' + MAX_URLS_PER_JOB + ' per batch).' });
 
-  var job = createJob(urls, DOWNLOADS_DIR);
-  res.json(jobSnapshot(job));
+  var targetDir = DOWNLOADS_DIR;
+  if (req.body && typeof req.body.path === 'string' && req.body.path.trim()) {
+    targetDir = path.resolve(req.body.path.trim());
+  }
+
+  var job;
+  try {
+    job = createJob(urls, targetDir);
+  } catch (err) {
+    return res.status(400).json({ error: 'Could not create/write to that folder: ' + err.message });
+  }
+  var snapshot = jobSnapshot(job);
+  snapshot.skipped = parsed.skipped;
+  res.json(snapshot);
 });
 
 app.get('/api/jobs/:id', function (req, res) {
