@@ -1096,6 +1096,17 @@
       padding: 10px 14px;
       font-size: 13px;
     }
+
+    /* Engagement panels (YouTube/Instagram/TikTok/Facebook) as a 2x2 grid,
+       matching the perf-grid card density, instead of stacking full-width
+       one below another - four short panels read better side by side than
+       as a long single-column scroll. */
+    .detail-platform-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .detail-platform-panel { padding: 10px 10px 11px; }
+    .detail-platform-head { gap: 5px; margin-bottom: 7px; }
+    .detail-platform-name { font-size: 11px; }
+    .detail-stat-row { flex-wrap: wrap; padding: 2px 0; font-size: 11px; gap: 2px 8px; }
+    .detail-stat-delta { font-size: 8.5px; }
   }
 
   /* Keeps the background from scrolling behind a full-screen mobile
