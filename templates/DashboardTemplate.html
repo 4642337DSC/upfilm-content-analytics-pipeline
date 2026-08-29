@@ -116,6 +116,13 @@
 
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
+  /* Safety net: no matter what forces a descendant wider than the
+     viewport (a min-content that outgrows its grid/flex track, a
+     text-scaling accessibility setting inflating font metrics beyond
+     what a desktop test catches), the page itself never gains a
+     horizontal scrollbar - the offending content clips instead of
+     dragging the whole layout sideways. */
+  html { overflow-x: hidden; }
   body {
     background: var(--bg);
     color: var(--ink);
@@ -898,7 +905,7 @@
     margin-bottom: 10px;
   }
 
-  .detail-platform-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+  .detail-platform-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; min-width: 0; }
   .detail-platform-panel {
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -1102,6 +1109,7 @@
        one below another - four short panels read better side by side than
        as a long single-column scroll. */
     .detail-platform-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .detail-platform-panel { min-width: 0; }
     .detail-platform-panel { padding: 10px 10px 11px; }
     .detail-platform-head { gap: 5px; margin-bottom: 7px; }
     .detail-platform-name { font-size: 11px; }
