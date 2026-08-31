@@ -347,7 +347,11 @@ export async function buildDashboard(cfg, thumbMap, outDir) {
   var audience = await fetchDashboardAudience(cfg);
   var monthly = await fetchDashboardMonthlyViews(cfg);
   var daily = await fetchDashboardDailyViews(cfg);
-  var followerSnapshots = await fetchDashboardFollowerSnapshots(cfg);
+  // Caught locally, same as longFormRows below - a transient Notion error
+  // here (e.g. rate limiting) must not abort the whole dashboard/reports
+  // build and leave the site stuck on a stale "as of" date.
+  var followerSnapshots = { yt: {}, fb: {}, ig: {}, tt: {} };
+  try { followerSnapshots = await fetchDashboardFollowerSnapshots(cfg); } catch (e) { console.log('Follower Snapshots dashboard fetch failed: ' + e); }
   // Empty array (not omitted) when disabled, so the template's embedded
   // `var LONG_FORM = ...;` is always valid JS/JSON for every client,
   // including Isogreen, which has no Long Form database. Caught locally
