@@ -623,7 +623,7 @@
   }
   .show-more-btn:hover { background: var(--surface-2); color: var(--ink); }
   .show-more-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  /* The table's 10 nowrap-cell columns are always wider than a mobile
+  /* The table's many nowrap-cell columns are always wider than a mobile
      viewport - auto (not visible) keeps the horizontal scroll contained to
      this box instead of blowing out the whole page's layout. */
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: 10px; }
@@ -806,6 +806,12 @@
     z-index: 50;
   }
   .detail-modal.show { display: flex; }
+  /* Stacking order when modals overlap: the "Show all" list popup is the
+     base layer; a video's detail popup (and a transcript) opened from a row
+     inside it must land on top of it, not behind. */
+  #listModal { z-index: 50; }
+  #detailModal { z-index: 60; }
+  #transcriptModal { z-index: 70; }
   .detail-modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
   .detail-modal-panel {
     position: relative;
@@ -1387,6 +1393,14 @@
   // platforms/metrics each source actually exposes are non-null - see
   // buildVideoDetail in src/dashboard.js for what's available per platform.
   var VIDEO_DETAILS = /*__VIDEO_DETAILS_DATA__*/;
+
+  // Pull each short's runtime (Notion "Duration (s)") off its VIDEO_DETAILS
+  // entry so the "Every short" table can show and sort a Length column - the
+  // RAW row itself doesn't carry duration.
+  DATA.forEach(function (r) {
+    var d = VIDEO_DETAILS[r.cod];
+    r.durationS = d && typeof d.durationS === "number" ? d.durationS : null;
+  });
 
   // Long Form content (Miradex only) - a separate, single-platform (YouTube)
   // table, entirely independent of the RAW/DATA/state used by the Shorts
@@ -2275,15 +2289,20 @@
   }
 
   /* ===================== render: table ===================== */
+  // Platform columns (iconOnly) render just the brand badge in the header -
+  // the label text is kept only as an accessible name / hover title so the
+  // table stays tight. Order: title, date, then Length + Total ahead of the
+  // per-platform view counts.
   var COLUMNS = [
     { key: "thumb", label: "", sortable: false },
     { key: "name", label: "Short", sortable: true },
     { key: "date", label: "Posted", sortable: true },
-    { key: "yt", label: "YouTube", sortable: true },
-    { key: "tt", label: "TikTok", sortable: true },
-    { key: "ig", label: "Instagram", sortable: true },
-    { key: "fb", label: "Facebook", sortable: true },
+    { key: "durationS", label: "Length", sortable: true },
     { key: "total", label: "Total", sortable: true },
+    { key: "yt", label: "YouTube", sortable: true, iconOnly: true },
+    { key: "tt", label: "TikTok", sortable: true, iconOnly: true },
+    { key: "ig", label: "Instagram", sortable: true, iconOnly: true },
+    { key: "fb", label: "Facebook", sortable: true, iconOnly: true },
     { key: "link", label: "Link", sortable: true },
     { key: "transcript", label: "Transcript", sortable: true },
     { key: "geminiExtracted", label: "Gemini", sortable: true },
@@ -2299,11 +2318,13 @@
       th.tabIndex = 0;
       th.setAttribute("role", "columnheader");
       th.setAttribute("aria-sort", "none");
-      if (["yt", "tt", "ig", "fb"].indexOf(col.key) !== -1) {
+      if (col.iconOnly) {
         th.appendChild(platformIcon(col.key, "sm"));
+        th.setAttribute("aria-label", col.label);
+        th.title = col.label;
       }
       var span = document.createElement("span");
-      span.textContent = col.label;
+      if (!col.iconOnly) span.textContent = col.label;
       if (col.sortable) {
         var arrow = document.createElement("span");
         arrow.className = "arrow";
@@ -2401,6 +2422,10 @@
     tdDate.className = "date-cell";
     tdDate.textContent = fmtDateShort(r.date);
 
+    var tdDur = document.createElement("td");
+    tdDur.className = r.durationS === null || r.durationS === undefined ? "date-cell muted-cell" : "date-cell";
+    tdDur.textContent = fmtDuration(r.durationS);
+
     var tdYt = document.createElement("td");
     tdYt.className = r.yt === null ? "muted-cell" : "";
     tdYt.textContent = fmtFull(r.yt);
@@ -2461,9 +2486,9 @@
     var tdGemini = buildStatusTickCell(r.geminiExtracted, "Gemini extraction", "Not yet extracted by Gemini");
     var tdClaude = buildStatusTickCell(r.claudeScored, "Claude scoring", "Not yet scored by Claude");
 
-    tr.appendChild(tdThumb); tr.appendChild(tdName); tr.appendChild(tdDate); tr.appendChild(tdYt);
-    tr.appendChild(tdTt); tr.appendChild(tdIg); tr.appendChild(tdFb); tr.appendChild(tdTotal);
-    tr.appendChild(tdLink); tr.appendChild(tdTranscript); tr.appendChild(tdGemini); tr.appendChild(tdClaude);
+    tr.appendChild(tdThumb); tr.appendChild(tdName); tr.appendChild(tdDate); tr.appendChild(tdDur);
+    tr.appendChild(tdTotal); tr.appendChild(tdYt); tr.appendChild(tdTt); tr.appendChild(tdIg);
+    tr.appendChild(tdFb); tr.appendChild(tdLink); tr.appendChild(tdTranscript); tr.appendChild(tdGemini); tr.appendChild(tdClaude);
     tr.setAttribute("tabindex", "0");
     tr.setAttribute("role", "button");
     tr.setAttribute("aria-label", "View details for " + r.name.trim());
@@ -3764,8 +3789,13 @@
       var headRow = document.createElement("tr");
       COLUMNS.forEach(function (col) {
         var th = document.createElement("th");
-        if (["yt", "tt", "ig", "fb"].indexOf(col.key) !== -1) th.appendChild(platformIcon(col.key, "sm"));
-        th.appendChild(document.createTextNode(col.label));
+        if (col.iconOnly) {
+          th.appendChild(platformIcon(col.key, "sm"));
+          th.setAttribute("aria-label", col.label);
+          th.title = col.label;
+        } else {
+          th.appendChild(document.createTextNode(col.label));
+        }
         headRow.appendChild(th);
       });
       thead.appendChild(headRow);
