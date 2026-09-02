@@ -344,10 +344,19 @@ export async function buildDashboard(cfg, thumbMap, outDir) {
   var rowsResult = await fetchDashboardRows(cfg, thumbMap);
   var rows = rowsResult.rows;
   var videoDetails = rowsResult.details;
-  var audience = await fetchDashboardAudience(cfg);
-  var monthly = await fetchDashboardMonthlyViews(cfg);
-  var daily = await fetchDashboardDailyViews(cfg);
-  var followerSnapshots = await fetchDashboardFollowerSnapshots(cfg);
+  // Each of these hits a paginated Notion query that can throw mid-loop on
+  // a transient failure (observed: a rate limit on page 2+ of Follower
+  // Snapshots) - caught locally, same reasoning as longFormRows below, so
+  // one flaky chart data source doesn't abort the whole dashboard rebuild
+  // and leave the previous day's stale index.html silently in place.
+  var audience = {};
+  try { audience = await fetchDashboardAudience(cfg); } catch (e) { console.log('Audience dashboard fetch failed: ' + e); }
+  var monthly = { yt: {}, fb: {}, ig: {}, tt: {} };
+  try { monthly = await fetchDashboardMonthlyViews(cfg); } catch (e) { console.log('Monthly views dashboard fetch failed: ' + e); }
+  var daily = { yt: {}, fb: {}, ig: {} };
+  try { daily = await fetchDashboardDailyViews(cfg); } catch (e) { console.log('Daily views dashboard fetch failed: ' + e); }
+  var followerSnapshots = { yt: {}, fb: {}, ig: {}, tt: {} };
+  try { followerSnapshots = await fetchDashboardFollowerSnapshots(cfg); } catch (e) { console.log('Follower snapshots dashboard fetch failed: ' + e); }
   // Empty array (not omitted) when disabled, so the template's embedded
   // `var LONG_FORM = ...;` is always valid JS/JSON for every client,
   // including Isogreen, which has no Long Form database. Caught locally
