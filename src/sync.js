@@ -47,15 +47,27 @@ export async function syncAllViews() {
   var thumbMap = {};
   try { thumbMap = await syncThumbnails(cfg, rows, path.join(DIST_DIR, 'thumbs')); } catch (e) { console.log('Thumbnail sync failed: ' + e); }
 
-  var yt = await syncYouTube(cfg, rows);
+  // One platform's API having a bad day (Meta throttling /video_reels with
+  // "reduce the amount of data", a YouTube 500, etc.) must not abort the
+  // whole run - the other platforms' view counts, the follower/audience
+  // sync, and the dashboard rebuild should all still happen. Each sync is
+  // isolated the same way every step after writeUpdates already is; a
+  // failed one just contributes no updates this run.
+  var yt = { results: [], unmatched: [] };
+  try { yt = await syncYouTube(cfg, rows); } catch (e) { console.log('YouTube sync failed: ' + e); }
   // Instagram has no duration field of its own (confirmed - Meta doesn't
   // expose one on the Media node) - reused from YouTube's here so its
   // avg-watch-% can still be computed, same video either way.
   var durationByPageId = {};
   yt.results.forEach(function (r) { if (typeof r.duration === 'number') durationByPageId[r.row.pageId] = r.duration; });
-  var fb = fbEnabled ? await syncFacebook(cfg, rows) : null;
-  var ig = fbEnabled ? await syncInstagram(cfg, rows, durationByPageId) : null;
-  var tt = tiktokEnabled ? await syncTikTok(cfg, rows) : null;
+  var fb = null, ig = null, tt = null;
+  if (fbEnabled) {
+    try { fb = await syncFacebook(cfg, rows); } catch (e) { console.log('Facebook sync failed: ' + e); }
+    try { ig = await syncInstagram(cfg, rows, durationByPageId); } catch (e) { console.log('Instagram sync failed: ' + e); }
+  }
+  if (tiktokEnabled) {
+    try { tt = await syncTikTok(cfg, rows); } catch (e) { console.log('TikTok sync failed: ' + e); }
+  }
 
   await writeUpdates(cfg, rows, yt, fb, ig, tt);
 
