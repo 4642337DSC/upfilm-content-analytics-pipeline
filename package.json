@@ -18,6 +18,7 @@
     "backfill:follower-history": "node scripts/backfill-follower-history.js",
     "backfill:clean-instagram-zero-views": "node scripts/backfill-clean-instagram-zero-views.js",
     "backfill:clean-facebook-zero-views": "node scripts/backfill-clean-facebook-zero-views.js",
+    "backfill:clean-follower-snapshots": "node scripts/backfill-clean-follower-snapshots.js",
     "backfill:create-video-analysis-db": "node scripts/backfill-create-video-analysis-db.js",
     "analyze:videos": "node src/videoAnalysisPipeline.js",
     "analyze:extract": "node src/videoAnalysisPipeline.js --extract-only",

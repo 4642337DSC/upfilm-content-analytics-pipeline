@@ -250,6 +250,35 @@ export async function findFollowerSnapshotRow(cfg, platform, dateKey) {
   return data.results[0].id;
 }
 
+// Every snapshot for one platform, ascending by date, as
+// [{ date: "YYYY-MM-DD", value: <number> }]. Rows with no numeric Followers
+// value are dropped. Used by src/audience.js to find the newest precise
+// anchor for the YouTube subscriber reconstruction, and by the history
+// backfill for the same.
+export async function fetchFollowerSnapshots(cfg, platform) {
+  if (!cfg.FOLLOWER_SNAPSHOTS_DATABASE_ID) return [];
+  var out = [];
+  var cursor = null;
+  do {
+    var payload = {
+      filter: { property: 'Platform', select: { equals: platform } },
+      sorts: [{ property: 'Date', direction: 'ascending' }],
+      page_size: 100
+    };
+    if (cursor) payload.start_cursor = cursor;
+    var data = await queryNotionDatabase(cfg, cfg.FOLLOWER_SNAPSHOTS_DATABASE_ID, payload);
+    if (data.object === 'error') throw new Error('Follower Snapshots query failed: ' + data.message);
+    (data.results || []).forEach(function (page) {
+      var props = page.properties;
+      var date = props['Date'] && props['Date'].date ? props['Date'].date.start : null;
+      var value = props['Followers'] ? props['Followers'].number : null;
+      if (date && typeof value === 'number') out.push({ date: date.slice(0, 10), value: value });
+    });
+    cursor = data.has_more ? data.next_cursor : null;
+  } while (cursor);
+  return out;
+}
+
 // ===== Matching (shared across platforms) =====
 // Primary key: "Data Postare" vs the post's publish date (same calendar day
 // in SYNC_TIMEZONE, with a +-1 day fallback). Among same-day candidates, the

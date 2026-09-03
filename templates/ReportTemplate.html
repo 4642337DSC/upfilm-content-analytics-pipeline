@@ -450,13 +450,23 @@ function buildFollowerStatsHtml(ym, followerSnapshots) {
     var end = snapshotOnOrBefore(series, monthEnd);
     var start = snapshotOnOrBefore(series, prevMonthEnd);
     if (start.value === null) {
-      var dates = Object.keys(series).sort();
+      // Earliest snapshot with a positive value - never a 0/negative, which
+      // is an API glitch (TikTok's first Zernio sync returned 0) that would
+      // otherwise make the whole follower base read as this month's growth.
+      var dates = Object.keys(series).sort().filter(function (d) { return series[d] > 0; });
       if (dates.length) start = { date: dates[0], value: series[dates[0]] };
     }
     var deltaVal = "";
-    if (typeof end.value === "number" && typeof start.value === "number" && start.date !== end.date) {
+    if (typeof end.value === "number" && typeof start.value === "number" && start.value > 0 && start.date !== end.date) {
       var delta = end.value - start.value;
-      deltaVal = (delta >= 0 ? "+" : "") + delta.toLocaleString("en-US");
+      // A month-over-month move larger than half the current base is not a
+      // real follower change - it means the baseline and the end value were
+      // measured on incompatible bases (a bad snapshot, or the YouTube Data
+      // API's rounded count vs. a precise one). Leave it blank for manual
+      // entry rather than print a misleading number.
+      if (Math.abs(delta) <= end.value * 0.5) {
+        deltaVal = (delta >= 0 ? "+" : "") + delta.toLocaleString("en-US");
+      }
     }
     return '<div class="stat-item">' +
       '<div class="stat-badge" style="background:' + meta.color + '">' + PLATFORM_ICON_SVG[key] + "</div>" +

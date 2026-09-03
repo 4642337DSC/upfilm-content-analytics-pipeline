@@ -1,7 +1,8 @@
 import { getConfig, requireConfig } from '../src/config.js';
-import { fetchNotionRows, writeFollowerSnapshots } from '../src/notion.js';
+import { fetchNotionRows, writeFollowerSnapshots, fetchFollowerSnapshots } from '../src/notion.js';
 import { fetchJson } from '../src/http.js';
-import { fetchYouTubeDailyFollowers } from '../src/youtubeAnalytics.js';
+import { fetchYouTubeDailyFollowers, fetchYouTubeFollowerHistoryForward } from '../src/youtubeAnalytics.js';
+import { latestPreciseSnapshot, looksApiRounded } from '../src/followerSanity.js';
 import { fetchFacebookDailyFollowers } from '../src/facebook.js';
 import { fetchInstagramDailyFollowers, fetchInstagramCurrentFollowers } from '../src/instagram.js';
 
@@ -49,6 +50,26 @@ if (ytEnabled) {
   if (currentSubs === null) {
     console.log('Could not resolve current YouTube subscriber count - skipping YouTube.');
   } else {
+    // The Data API rounds subscriberCount to 3 significant figures above
+    // 1,000 subs, so anchoring the whole backward reconstruction on it bakes
+    // a ~50-sub error into every historical day. If a precise snapshot
+    // already exists (from an earlier run of this script), re-anchor: walk
+    // the exact Analytics deltas FORWARD from it to get a precise
+    // "current", then hand that to the backward reconstruction instead.
+    var existing = latestPreciseSnapshot(await fetchFollowerSnapshots(cfg, 'YouTube'));
+    if (existing) {
+      try {
+        var forward = await fetchYouTubeFollowerHistoryForward(cfg, existing.date, existing.value, end);
+        var fwdDays = Object.keys(forward).sort();
+        var preciseCurrent = fwdDays.length ? forward[fwdDays[fwdDays.length - 1]] : existing.value;
+        console.log('Re-anchoring on precise snapshot ' + existing.date + ' (' + existing.value + ') -> precise current ' + preciseCurrent + ' (Data API rounded: ' + currentSubs + ').');
+        currentSubs = preciseCurrent;
+      } catch (e) {
+        console.log('Forward re-anchor failed, using Data API count: ' + e);
+      }
+    } else if (looksApiRounded(currentSubs)) {
+      console.log('No precise YouTube snapshot to re-anchor on - reconstruction will carry the Data API\'s ~3-sig-fig rounding (' + currentSubs + '). Re-run once a precise series exists to tighten it.');
+    }
     console.log('Reconstructing YouTube daily subscriber history from ' + currentSubs + ' current subscribers...');
     var ytDaily = await fetchYouTubeDailyFollowers(cfg, start, end, currentSubs);
     console.log('Writing ' + Object.keys(ytDaily).length + ' YouTube day(s)...');

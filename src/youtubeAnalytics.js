@@ -52,15 +52,14 @@ export async function fetchYouTubeDailyViews(cfg, start, end) {
   return daily;
 }
 
-// Full daily subscriber-count history, reconstructed rather than fetched
-// directly - the Analytics API has no "subscriber count over time" metric,
-// but does retain subscribersGained/subscribersLost day-level deltas back
-// through the channel's history. Anchored to currentCount (today's real
-// count, from the Data API's plain statistics.subscriberCount, fetched by
-// the caller) and walked backwards day by day.
-export async function fetchYouTubeDailyFollowers(cfg, start, end, currentCount) {
-  var accessToken = await getYouTubeAccessToken(cfg);
-
+// Net subscriber change (subscribersGained - subscribersLost) per exact
+// calendar day over [start, end], as { "YYYY-MM-DD": net }. The Analytics
+// API has no "subscriber count over time" metric, but does retain these
+// day-level deltas back through the channel's history - every subscriber
+// reconstruction below is built from them. Takes an already-minted
+// accessToken so a caller doing both a backward and a forward walk only
+// does the OAuth handshake once.
+export async function fetchYouTubeSubscriberDeltas(accessToken, start, end) {
   var url = 'https://youtubeanalytics.googleapis.com/v2/reports?' + new URLSearchParams({
     ids: 'channel==MINE',
     metrics: 'subscribersGained,subscribersLost',
@@ -75,6 +74,15 @@ export async function fetchYouTubeDailyFollowers(cfg, start, end, currentCount) 
 
   var deltaByDay = {};
   (data.rows || []).forEach(function (row) { deltaByDay[String(row[0])] = row[1] - row[2]; });
+  return deltaByDay;
+}
+
+// Full daily subscriber-count history, reconstructed rather than fetched
+// directly. Anchored to currentCount (today's real count, fetched by the
+// caller) and walked backwards day by day.
+export async function fetchYouTubeDailyFollowers(cfg, start, end, currentCount) {
+  var accessToken = await getYouTubeAccessToken(cfg);
+  var deltaByDay = await fetchYouTubeSubscriberDeltas(accessToken, start, end);
 
   var days = Object.keys(deltaByDay).sort();
   var daily = {};
@@ -82,6 +90,33 @@ export async function fetchYouTubeDailyFollowers(cfg, start, end, currentCount) 
   for (var i = days.length - 1; i >= 0; i--) {
     daily[days[i]] = running;
     running -= deltaByDay[days[i]];
+  }
+  return daily;
+}
+
+// The mirror of fetchYouTubeDailyFollowers: given a known-precise anchor
+// (value on anchorDate), walk FORWARD to `end` accumulating the daily net
+// deltas, returning { "YYYY-MM-DD": count } for every day strictly after
+// anchorDate through the last day Analytics has data for. Used by the daily
+// sync to carry a trustworthy count forward from the newest non-rounded
+// snapshot instead of writing the YouTube Data API's rounded value. The
+// anchor day itself is not re-emitted. Returns {} when the anchor is
+// already current (or Analytics has no newer rows yet - it runs ~2-3 days
+// behind).
+export async function fetchYouTubeFollowerHistoryForward(cfg, anchorDate, anchorValue, end) {
+  var next = new Date(anchorDate + 'T00:00:00Z');
+  next.setUTCDate(next.getUTCDate() + 1);
+  if (next > end) return {};
+
+  var accessToken = await getYouTubeAccessToken(cfg);
+  var deltaByDay = await fetchYouTubeSubscriberDeltas(accessToken, next, end);
+
+  var days = Object.keys(deltaByDay).sort();
+  var daily = {};
+  var running = anchorValue;
+  for (var i = 0; i < days.length; i++) {
+    running += deltaByDay[days[i]];
+    daily[days[i]] = running;
   }
   return daily;
 }

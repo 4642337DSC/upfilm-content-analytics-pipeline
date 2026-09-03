@@ -1,8 +1,17 @@
 import { fetchJson } from './http.js';
 import { GRAPH_API_VERSION } from './config.js';
-import { queryNotionDatabase, updateNotionPage, writeFollowerSnapshot } from './notion.js';
+import { queryNotionDatabase, updateNotionPage, writeFollowerSnapshot, fetchFollowerSnapshots } from './notion.js';
 import { resolveInstagramUserId } from './instagram.js';
+import { fetchYouTubeFollowerHistoryForward } from './youtubeAnalytics.js';
+import { isImplausibleFollowerCount, latestPreciseSnapshot, looksApiRounded } from './followerSanity.js';
 import { isoDate } from './util.js';
+
+// Don't reconstruct YouTube subscriber history forward across an unbounded
+// gap - if the newest precise snapshot is more than this many days old,
+// something is wrong upstream (backfill never ran, DB wiped) and a
+// multi-hundred-day Analytics walk isn't the daily sync's job. Falls back
+// to the Data API value in that case.
+var MAX_YT_FORWARD_RECONSTRUCT_DAYS = 400;
 
 // Account-level follower/subscriber counts (not per-video) - written to a
 // separate small "Channel Stats" database, since the main Video database is
@@ -11,16 +20,46 @@ import { isoDate } from './util.js';
 export async function syncAudience(cfg) {
   if (!cfg.CHANNEL_STATS_DATABASE_ID) return;
   var stats = {};
+  // Extra daily snapshots to (re)write beyond today's single per-platform
+  // row - currently just YouTube's forward reconstruction, which overwrites
+  // any rounded Data API values already stored for those days.
+  var extraSnapshots = [];
 
   try {
     var chData = await fetchJson(
       'https://www.googleapis.com/youtube/v3/channels?part=statistics&forHandle=' +
       encodeURIComponent(cfg.CHANNEL_HANDLE) + '&key=' + cfg.YOUTUBE_API_KEY);
     if (chData.items && chData.items.length) {
-      stats.YouTube = {
-        followers: parseInt(chData.items[0].statistics.subscriberCount, 10),
-        totalViews: parseInt(chData.items[0].statistics.viewCount, 10)
-      };
+      var apiSubs = parseInt(chData.items[0].statistics.subscriberCount, 10);
+      var totalViews = parseInt(chData.items[0].statistics.viewCount, 10);
+      // The Data API rounds subscriberCount to 3 significant figures above
+      // 1,000 subs. Prefer a precise count reconstructed from the Analytics
+      // API's exact subscribersGained/Lost deltas, anchored on the newest
+      // snapshot we already trust to be precise (see followerSanity.js).
+      var ytFollowers = apiSubs;
+      var ytOAuth = !!(cfg.YOUTUBE_OAUTH_CLIENT_ID && cfg.YOUTUBE_OAUTH_CLIENT_SECRET && cfg.YOUTUBE_REFRESH_TOKEN);
+      if (ytOAuth && cfg.FOLLOWER_SNAPSHOTS_DATABASE_ID) {
+        try {
+          var series = await fetchFollowerSnapshots(cfg, 'YouTube');
+          var anchor = latestPreciseSnapshot(series);
+          if (anchor && daysBetween(anchor.date, isoDate(new Date())) <= MAX_YT_FORWARD_RECONSTRUCT_DAYS) {
+            var forward = await fetchYouTubeFollowerHistoryForward(cfg, anchor.date, anchor.value, new Date());
+            var forwardDays = Object.keys(forward).sort();
+            if (forwardDays.length) {
+              ytFollowers = forward[forwardDays[forwardDays.length - 1]];
+              extraSnapshots = forwardDays.map(function (d) { return { platform: 'YouTube', date: d, followers: forward[d] }; });
+            } else {
+              // Anchor is already current (Analytics has no newer rows).
+              ytFollowers = anchor.value;
+            }
+          } else if (!anchor && looksApiRounded(apiSubs)) {
+            console.log('YouTube: no precise snapshot to anchor on and the Data API count is rounded - storing it as-is; run backfill:follower-history to seed a precise series.');
+          }
+        } catch (e) {
+          console.log('YouTube precise subscriber reconstruction failed, using Data API value: ' + e);
+        }
+      }
+      stats.YouTube = { followers: ytFollowers, totalViews: totalViews };
     }
   } catch (e) { console.log('YouTube audience fetch failed: ' + e); }
 
@@ -57,11 +96,40 @@ export async function syncAudience(cfg) {
     var today = isoDate(new Date());
     for (var platform of Object.keys(stats)) {
       var followers = stats[platform].followers;
-      if (typeof followers !== 'number') continue;
+      // A non-positive count (the Zernio 0 seen on TikTok's first sync) or a
+      // >25% single-day swing is an API glitch, not a real reading - writing
+      // it poisons every month-over-month delta computed off it. Skip and
+      // log rather than persist it.
+      var prev = await latestSnapshotValue(cfg, platform);
+      if (isImplausibleFollowerCount(followers, prev)) {
+        console.log(platform + ' follower count ' + followers + ' looks implausible vs last snapshot ' + prev + ' - skipping snapshot.');
+        continue;
+      }
       try {
         await writeFollowerSnapshot(cfg, platform, today, followers);
       } catch (e) { console.log(platform + ' follower snapshot failed: ' + e); }
     }
+
+    for (var snap of extraSnapshots) {
+      if (isImplausibleFollowerCount(snap.followers, null)) continue;
+      try {
+        await writeFollowerSnapshot(cfg, snap.platform, snap.date, snap.followers);
+      } catch (e) { console.log(snap.platform + ' reconstructed snapshot ' + snap.date + ' failed: ' + e); }
+    }
+  }
+}
+
+// Whole days between two "YYYY-MM-DD" strings (b - a), for the anchor-age check.
+export function daysBetween(a, b) {
+  return Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 86400000);
+}
+
+async function latestSnapshotValue(cfg, platform) {
+  try {
+    var series = await fetchFollowerSnapshots(cfg, platform);
+    return series.length ? series[series.length - 1].value : null;
+  } catch (e) {
+    return null;
   }
 }
 

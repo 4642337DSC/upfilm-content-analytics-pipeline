@@ -1867,7 +1867,10 @@
         var last = 0, seen = false;
         raw = []; real = [];
         days.forEach(function (d) {
-          if (typeof source[d] === "number") { last = source[d]; seen = true; }
+          // A non-positive follower count is an API glitch (TikTok's first
+          // Zernio sync returned 0), never a real reading - carry the last
+          // real value forward instead of dropping the line to zero.
+          if (typeof source[d] === "number" && source[d] > 0) { last = source[d]; seen = true; }
           raw.push(last);
           real.push(seen);
         });
