@@ -1,7 +1,12 @@
 import { fetchGraphJson } from './http.js';
 import { GRAPH_API_VERSION } from './config.js';
 import { matchContent, findById, buildPlatformReport } from './notion.js';
-import { monthRangeSince, isoDate } from './util.js';
+import { monthRangeSince, isoDate, mapWithConcurrency } from './util.js';
+
+// Both insight fetches below are one call per media with no batched
+// equivalent - comfortably under Meta's per-app rate limit while still
+// cutting a few hundred sequential round-trips down substantially.
+var INSTAGRAM_INSIGHT_CONCURRENCY = 6;
 
 export async function resolveInstagramUserId(cfg) {
   var url = 'https://graph.facebook.com/' + GRAPH_API_VERSION + '/' + cfg.FB_PAGE_ID +
@@ -45,13 +50,13 @@ export async function fetchInstagramInsight(cfg, mediaId, metric) {
 export async function fetchInstagramViewCounts(cfg, mediaIds) {
   var unique = mediaIds.filter(function (id, i) { return mediaIds.indexOf(id) === i; });
   var views = {};
-  for (var id of unique) {
+  await mapWithConcurrency(unique, INSTAGRAM_INSIGHT_CONCURRENCY, async function (id) {
     var data = await fetchInstagramInsight(cfg, id, 'views');
     if (!data) data = await fetchInstagramInsight(cfg, id, 'plays'); // older API versions used "plays" for Reels
     if (data && data.data && data.data.length && data.data[0].values && data.data[0].values.length) {
       views[id] = data.data[0].values[0].value;
     }
-  }
+  });
   return views;
 }
 
@@ -64,17 +69,17 @@ export async function fetchInstagramViewCounts(cfg, mediaIds) {
 export async function fetchInstagramMediaMetrics(cfg, mediaIds) {
   var unique = mediaIds.filter(function (id, i) { return mediaIds.indexOf(id) === i; });
   var metrics = {};
-  for (var id of unique) {
+  await mapWithConcurrency(unique, INSTAGRAM_INSIGHT_CONCURRENCY, async function (id) {
     var url = 'https://graph.facebook.com/' + GRAPH_API_VERSION + '/' + id +
       '/insights?metric=likes,comments,saved,shares,reels_skip_rate,ig_reels_avg_watch_time&access_token=' + cfg.FB_PAGE_ACCESS_TOKEN;
     var data = await fetchGraphJson(url);
-    if (data.error) { console.log('Instagram media metrics fetch failed for ' + id + ': ' + JSON.stringify(data.error)); continue; }
+    if (data.error) { console.log('Instagram media metrics fetch failed for ' + id + ': ' + JSON.stringify(data.error)); return; }
     var m = {};
     (data.data || []).forEach(function (row) {
       m[row.name] = (row.values && row.values.length) ? row.values[0].value : null;
     });
     metrics[id] = m;
-  }
+  });
   return metrics;
 }
 

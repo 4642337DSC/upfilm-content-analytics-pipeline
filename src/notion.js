@@ -1,6 +1,13 @@
 import { fetchJson } from './http.js';
 import { NOTION_VERSION, TEXT_MATCH_THRESHOLD, TEXT_MARGIN } from './config.js';
-import { dateKeyInTz } from './util.js';
+import { dateKeyInTz, mapWithConcurrency } from './util.js';
+
+// Notion's documented limit is an average of ~3 requests/second - writing
+// one page at a time in a for-loop used to mean a few hundred pages took
+// several minutes of pure sequential latency. This stays comfortably under
+// that average even with every worker in flight at once; notionWrite's own
+// rate_limited retry (below) is the backstop for the rest.
+var NOTION_WRITE_CONCURRENCY = 3;
 
 function notionHeaders(cfg) {
   return {
@@ -501,7 +508,7 @@ export function buildUpdatePayloads(cfg, rows, yt, fb, ig, tt) {
 
 export async function writeUpdates(cfg, rows, yt, fb, ig, tt) {
   var byPage = buildUpdatePayloads(cfg, rows, yt, fb, ig, tt);
-  for (var pageId of Object.keys(byPage)) {
+  await mapWithConcurrency(Object.keys(byPage), NOTION_WRITE_CONCURRENCY, async function (pageId) {
     await updateNotionPage(cfg, pageId, byPage[pageId]);
-  }
+  });
 }

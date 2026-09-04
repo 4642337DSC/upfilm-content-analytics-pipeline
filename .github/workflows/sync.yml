@@ -22,8 +22,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
-      - run: npm install
+      - run: npm ci
 
       - name: Run sync
         env:
@@ -80,8 +81,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
-      - run: npm install
+      - run: npm ci
 
       - name: Download all client builds
         uses: actions/download-artifact@v4

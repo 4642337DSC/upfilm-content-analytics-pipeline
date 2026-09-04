@@ -1,6 +1,13 @@
 import { fetchJson } from './http.js';
 import { matchContent, buildPlatformReport, findById, daysApart } from './notion.js';
 import { fetchYouTubeVideoRetention, fetchYouTubeAvgWatchStats, getYouTubeAccessToken } from './youtubeAnalytics.js';
+import { mapWithConcurrency } from './util.js';
+
+// The retention call below is one request per video with no batching
+// available (see fetchYouTubeVideoRetention's comment) - this is comfortably
+// under YouTube Analytics' per-second quota while still cutting a few-hundred-
+// video sync from minutes of serial latency down to a fraction of that.
+var RETENTION_CONCURRENCY = 6;
 
 // A cached "YouTube URL" is normally trusted unconditionally (that's the
 // whole point of caching - skip re-matching every run). But a row's "Data
@@ -159,10 +166,9 @@ export async function syncYouTube(cfg, rows) {
     avgWatchStats = await fetchYouTubeAvgWatchStats(accessToken, idsNeeded);
   }
 
-  var results = [];
-  for (var p of plan) {
+  var mapped = await mapWithConcurrency(plan, RETENTION_CONCURRENCY, async function (p) {
     var stat = stats[p.id];
-    if (stat === undefined) continue;
+    if (stat === undefined) return null;
     var avgWatch = avgWatchStats[p.id] || {};
     // The one genuinely expensive call here (no batching available for
     // this dimension) - same cost pattern already accepted for Instagram's
@@ -185,9 +191,9 @@ export async function syncYouTube(cfg, rows) {
     // duration here catches that on the very next sync, not just new
     // matches. Long Form's sync pass sets this to 60s; Shorts leaves it
     // unset (0), so this is a no-op for every existing caller.
-    if (cfg.MIN_VIDEO_DURATION_SECONDS && stat.duration < cfg.MIN_VIDEO_DURATION_SECONDS) continue;
+    if (cfg.MIN_VIDEO_DURATION_SECONDS && stat.duration < cfg.MIN_VIDEO_DURATION_SECONDS) return null;
     var candidate = findById(videos, p.id);
-    results.push({
+    return {
       row: p.row, views: stat.views, duration: stat.duration, likes: stat.likes, comments: stat.comments,
       avgWatchTimeS: avgWatch.avgWatchTimeS, avgWatchPct: avgWatch.avgWatchPct,
       hookRate: postDateReliable ? avgWatch.hookRate : null,
@@ -203,8 +209,9 @@ export async function syncYouTube(cfg, rows) {
       // practice the uploads playlist returns full history) - null rather
       // than a stale title is preferred when it can't be confirmed.
       youtubeTitle: candidate ? candidate.title : null
-    });
-  }
+    };
+  });
+  var results = mapped.filter(function (r) { return r !== null; });
 
   return buildPlatformReport(rows, results);
 }
