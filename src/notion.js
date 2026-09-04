@@ -85,7 +85,24 @@ export function extractCod(prop) {
 async function notionWrite(url, options, label) {
   var maxAttempts = 4;
   for (var attempt = 1; attempt <= maxAttempts; attempt++) {
-    var result = await fetchJson(url, options);
+    var result;
+    try {
+      result = await fetchJson(url, options);
+    } catch (e) {
+      // Notion (or a proxy in front of it) occasionally answers a write with
+      // a non-JSON body - an HTML error page from a transient 5xx - which
+      // used to throw straight out of JSON.parse with no try/catch anywhere
+      // above it, crashing the whole writeUpdates loop and losing every
+      // remaining page's write for that sync run. Treat it the same as a
+      // rate-limited response: retry with backoff, then give up loudly.
+      if (attempt < maxAttempts) {
+        console.log('Notion write got a non-JSON response (' + label + '), retrying: ' + e.message);
+        await new Promise(function (resolve) { setTimeout(resolve, attempt * 800); });
+        continue;
+      }
+      console.log('Notion write failed (' + label + '): ' + e.message);
+      return null;
+    }
     if (!result || result.object !== 'error') return result;
     if (result.code === 'rate_limited' && attempt < maxAttempts) {
       await new Promise(function (resolve) { setTimeout(resolve, attempt * 800); });

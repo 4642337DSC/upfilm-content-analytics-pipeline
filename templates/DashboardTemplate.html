@@ -1121,6 +1121,15 @@
     .detail-platform-name { font-size: 11px; }
     .detail-stat-row { flex-wrap: wrap; padding: 2px 0; font-size: 11px; gap: 2px 8px; }
     .detail-stat-delta { font-size: 8.5px; }
+
+    /* The three chart tabs ("Retention curve" / "Avg. view duration" /
+       "Hook analysis") don't wrap - as an inline-flex row with no width
+       cap they were wider than the phone screen and bled past the popup's
+       edge instead of wrapping. Cap the row to the panel width and let it
+       scroll horizontally instead, same pattern as the tables below it. */
+    .detail-chart-tabs { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
+    .detail-chart-tabs::-webkit-scrollbar { display: none; }
+    .detail-chart-tab { flex: none; white-space: nowrap; }
   }
 
   /* Keeps the background from scrolling behind a full-screen mobile
