@@ -646,6 +646,17 @@
   @media (min-width: 861px) {
     .table-scroll { scrollbar-width: none; -ms-overflow-style: none; }
     .table-scroll::-webkit-scrollbar { display: none; }
+    /* The assumption above doesn't hold inside the "Every short"/"Every
+       Long" popup: .list-modal-panel caps at 900px regardless of screen
+       width, so with this many columns the table needs to scroll on any
+       desktop screen - hiding the scrollbar there left zero cue that more
+       columns exist off to the right (confirmed: read as the table being
+       cut off/broken, not as scrollable). Restore a real, thin one just
+       for tables inside this modal. */
+    .list-modal-panel .table-scroll { scrollbar-width: thin; -ms-overflow-style: auto; }
+    .list-modal-panel .table-scroll::-webkit-scrollbar { display: block; height: 8px; }
+    .list-modal-panel .table-scroll::-webkit-scrollbar-track { background: transparent; }
+    .list-modal-panel .table-scroll::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 999px; }
   }
   table { min-width: 720px; }
   table { border-collapse: collapse; width: 100%; table-layout: auto; }
