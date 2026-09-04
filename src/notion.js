@@ -2,12 +2,19 @@ import { fetchJson } from './http.js';
 import { NOTION_VERSION, TEXT_MATCH_THRESHOLD, TEXT_MARGIN } from './config.js';
 import { dateKeyInTz, mapWithConcurrency } from './util.js';
 
-// Notion's documented limit is an average of ~3 requests/second - writing
-// one page at a time in a for-loop used to mean a few hundred pages took
-// several minutes of pure sequential latency. This stays comfortably under
-// that average even with every worker in flight at once; notionWrite's own
-// rate_limited retry (below) is the backstop for the rest.
-var NOTION_WRITE_CONCURRENCY = 3;
+// Tried 3 here once (reasoning: Notion's documented limit is an average of
+// ~3 requests/second, so 3 workers "should" stay under it) - wrong, because
+// each worker fires its next request the instant the last one resolves, with
+// no pacing between them, so 3 workers in practice burst well past that
+// average. Confirmed live on isogreen's ~150-row sync: 46 writes hit
+// rate_limited, and the cascade got bad enough that a *later*, unrelated
+// Notion query (buildDashboard's own read, unrelated to these writes) also
+// got rate-limited and threw - which silently killed that run's entire
+// dashboard rebuild (sync.js's try/catch logged it and moved on, so the job
+// still reported "success" - the live site just quietly kept serving the
+// previous day's build). Back to 1 (== the original sequential for-loop)
+// until this has real request pacing, not just worker count, behind it.
+var NOTION_WRITE_CONCURRENCY = 1;
 
 function notionHeaders(cfg) {
   return {
