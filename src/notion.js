@@ -513,9 +513,47 @@ export function buildUpdatePayloads(cfg, rows, yt, fb, ig, tt) {
   return byPage;
 }
 
+function sleep(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
+// notionWrite's own per-request retries (4 attempts, ~0.8-3.2s backoff) were
+// tripping and giving up even at concurrency 1, because nothing paced the
+// *next* write - each one fired the instant the last resolved, still
+// bursting past Notion's ~3 req/sec average on a 150-200 row client (see
+// NOTION_WRITE_CONCURRENCY's comment above). Confirmed live: a different
+// handful of pageIds failed with "You have been rate limited" on every
+// day's run. A page that exhausts notionWrite's retries there almost always
+// isn't broken, just unlucky - it happened to be written while the limit
+// was hot. Silently dropping it meant a freshly-matched video's very first
+// Views write could vanish for the rest of the run, showing up to a viewer
+// as a video with no views data until whatever day it later got lucky.
+var NOTION_WRITE_PACING_MS = 350;
+
 export async function writeUpdates(cfg, rows, yt, fb, ig, tt) {
   var byPage = buildUpdatePayloads(cfg, rows, yt, fb, ig, tt);
-  await mapWithConcurrency(Object.keys(byPage), NOTION_WRITE_CONCURRENCY, async function (pageId) {
-    await updateNotionPage(cfg, pageId, byPage[pageId]);
+  var pageIds = Object.keys(byPage);
+  var failed = [];
+  await mapWithConcurrency(pageIds, NOTION_WRITE_CONCURRENCY, async function (pageId) {
+    var result = await updateNotionPage(cfg, pageId, byPage[pageId]);
+    if (!result || result.object === 'error') failed.push(pageId);
+    await sleep(NOTION_WRITE_PACING_MS);
   });
+
+  // Second pass for anything that still failed - by now the rest of the
+  // run's write volume is done and the extra pause below gives Notion's
+  // rate limit window time to clear, so this catches the common case
+  // instead of leaving it for tomorrow's run to maybe get lucky on.
+  if (failed.length) {
+    console.log('Retrying ' + failed.length + ' Notion write(s) that hit the rate limit: ' + failed.join(', '));
+    await sleep(3000);
+    for (var i = 0; i < failed.length; i++) {
+      var pageId = failed[i];
+      var result = await updateNotionPage(cfg, pageId, byPage[pageId]);
+      if (!result || result.object === 'error') {
+        console.log('Notion write still failing after retry pass (' + pageId + ') - giving up for this run.');
+      }
+      await sleep(NOTION_WRITE_PACING_MS);
+    }
+  }
 }
