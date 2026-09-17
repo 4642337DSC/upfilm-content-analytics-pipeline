@@ -1,26 +1,52 @@
 import { fetchGraphJson } from './http.js';
 import { GRAPH_API_VERSION } from './config.js';
 import { matchContent, findById, buildPlatformReport } from './notion.js';
+import { mapWithConcurrency } from './util.js';
 
 // Isogreen's Shorts are posted as Facebook Reels, which live under /video_reels
 // (not the legacy /videos edge) and use the "blue_reels_play_count" metric
 // instead of "total_video_views". Also requires a Page-scoped access token,
 // not a User token, per Meta's "new Pages experience".
 //
-// Engagement/watch-time fields are all pulled via the same field-expansion
-// this call already makes - no extra API calls. "comments" and "shares"
-// were tried too and don't exist on the Reels object at all (confirmed live
-// - "Tried accessing nonexisting field" even permission aside), unlike
-// "likes" which does. "length" (duration, seconds) is fetched here for
-// this video's own avg-watch-% calc specifically, distinct from the
-// YouTube-sourced "Duration (s)" Notion column other platforms share.
-var FB_VIDEO_FIELDS = 'id,description,created_time,permalink_url,picture,length,likes.summary(true),' +
+// Kept deliberately light - just enough to date+text match a row against a
+// candidate. Insights (views/likes/retention) used to be fetched inline here
+// via field expansion, but that made every page of this listing carry a full
+// per-second retention curve for up to 100 videos at once - as the channel's
+// history grew past a couple hundred Reels, Meta started rejecting the
+// request outright with code 1 "Please reduce the amount of data you're
+// asking for" on every single sync run (confirmed live on both Isogreen and
+// Miradex - fetchGraphJson's retry-on-code-1 didn't help, since re-sending
+// the identical oversized request just gets the identical rejection).
+// http.js's TRANSIENT_META_ERROR_CODES treats code 1 as retryable because
+// it's normally Meta's flaky "unknown error" catch-all - it isn't flaky here,
+// it's a deterministic complexity-budget rejection, and fetchAllFacebookVideos
+// throwing on it killed the *entire* Facebook sync (zero views/URLs written
+// for any video, every platform-field on every row silently staying stale)
+// rather than just one page. Insights are now fetched separately, per
+// matched video only (see fetchFacebookVideoInsights below) - mirrors how
+// instagram.js already splits fetchAllInstagramMedia (light) from
+// fetchInstagramViewCounts/fetchInstagramMediaMetrics (insights, per-id).
+var FB_VIDEO_LIST_FIELDS = 'id,description,created_time,permalink_url,picture,length';
+
+// Engagement/watch-time fields, fetched one call per matched video (not
+// per row in the bulk listing) - see FB_VIDEO_LIST_FIELDS' comment for why.
+// "comments" and "shares" were tried too and don't exist on the Reels object
+// at all (confirmed live - "Tried accessing nonexisting field" even
+// permission aside), unlike "likes" which does.
+var FB_VIDEO_INSIGHTS_FIELDS = 'likes.summary(true),' +
   'video_insights.metric(blue_reels_play_count,post_video_avg_time_watched,post_video_retention_graph)';
 
-// Shared by fetchAllFacebookVideos (bulk /video_reels listing) and
-// fetchFacebookVideoById (single-item direct lookup) so both paths parse
-// the identical field-expansion shape the same way.
-function parseFacebookVideoItem(item) {
+function parseFacebookVideoListItem(item) {
+  var length = typeof item.length === 'number' ? item.length : null;
+  var permalink = item.permalink_url
+    ? (item.permalink_url.indexOf('http') === 0 ? item.permalink_url : 'https://www.facebook.com' + item.permalink_url)
+    : null;
+  return { id: item.id, text: item.description || '', publishedAt: item.created_time, permalink: permalink, length: length, picture: item.picture || null };
+}
+
+// `length` comes from the caller's already-fetched list item (or null when
+// a manual-URL id wasn't found in the light listing at all).
+function parseFacebookInsights(item, length) {
   var insights = {};
   if (item.video_insights && item.video_insights.data) {
     item.video_insights.data.forEach(function (m) {
@@ -30,33 +56,40 @@ function parseFacebookVideoItem(item) {
   var views = insights.blue_reels_play_count !== undefined ? insights.blue_reels_play_count : null;
   var avgWatchMs = typeof insights.post_video_avg_time_watched === 'number' ? insights.post_video_avg_time_watched : null;
   var retention = insights.post_video_retention_graph || null;
-  var length = typeof item.length === 'number' ? item.length : null;
   // Hook rate: retention[6] IS already "fraction of the audience still
   // watching at second 6" - exactly "kept watching past the hook
   // window" (6s for Facebook, since its retention data plateaus
   // through ~3s - see the flat-start explanation elsewhere).
   var hookRate = (retention && retention['6'] !== undefined) ? Math.round(retention['6'] * 1000) / 10 : null;
   var avgWatchPct = (avgWatchMs !== null && length) ? Math.round((avgWatchMs / 1000 / length) * 1000) / 10 : null;
-  var permalink = item.permalink_url
-    ? (item.permalink_url.indexOf('http') === 0 ? item.permalink_url : 'https://www.facebook.com' + item.permalink_url)
-    : null;
   return {
-    id: item.id, text: item.description || '', publishedAt: item.created_time, permalink: permalink,
-    views: views, picture: item.picture || null,
+    views: views,
     likes: (item.likes && item.likes.summary) ? item.likes.summary.total_count : null,
     avgWatchTimeS: avgWatchMs !== null ? Math.round(avgWatchMs) / 1000 : null,
     avgWatchPct: avgWatchPct, hookRate: hookRate, retention: retention
   };
 }
 
+// One call per matched video - not one per row in bulk, see
+// FB_VIDEO_LIST_FIELDS' comment above for why.
+var FB_INSIGHTS_CONCURRENCY = 6;
+
+export async function fetchFacebookVideoInsights(cfg, videoId, length) {
+  var url = 'https://graph.facebook.com/' + GRAPH_API_VERSION + '/' + videoId +
+    '?fields=' + FB_VIDEO_INSIGHTS_FIELDS + '&access_token=' + cfg.FB_PAGE_ACCESS_TOKEN;
+  var data = await fetchGraphJson(url);
+  if (data.error) return null;
+  return parseFacebookInsights(data, length);
+}
+
 export async function fetchAllFacebookVideos(cfg) {
   var videos = [];
   var url = 'https://graph.facebook.com/' + GRAPH_API_VERSION + '/' + cfg.FB_PAGE_ID + '/video_reels' +
-    '?fields=' + FB_VIDEO_FIELDS + '&limit=100&access_token=' + cfg.FB_PAGE_ACCESS_TOKEN;
+    '?fields=' + FB_VIDEO_LIST_FIELDS + '&limit=100&access_token=' + cfg.FB_PAGE_ACCESS_TOKEN;
   while (url) {
     var data = await fetchGraphJson(url);
     if (data.error) throw new Error('Facebook videos fetch failed: ' + JSON.stringify(data.error));
-    (data.data || []).forEach(function (item) { videos.push(parseFacebookVideoItem(item)); });
+    (data.data || []).forEach(function (item) { videos.push(parseFacebookVideoListItem(item)); });
     url = (data.paging && data.paging.next) ? data.paging.next : null;
   }
   return videos;
@@ -72,29 +105,12 @@ export function extractFacebookVideoId(url) {
   return m ? m[1] : null;
 }
 
-// Single-item counterpart to fetchAllFacebookVideos, for rows whose reel
-// isn't showing up in the Page's own /video_reels listing - confirmed to
-// happen for at least one Instagram-crossposted Reel (never appeared in
-// /video_reels across a full sync run despite being a live, public
-// facebook.com/reel/<id> URL saved on the Notion row). Returns null rather
-// than throwing on a not-found/permission error, since this is a fallback
-// path and the caller already has "no data" as a valid outcome.
-export async function fetchFacebookVideoById(cfg, videoId) {
-  var url = 'https://graph.facebook.com/' + GRAPH_API_VERSION + '/' + videoId +
-    '?fields=' + FB_VIDEO_FIELDS + '&access_token=' + cfg.FB_PAGE_ACCESS_TOKEN;
-  var data = await fetchGraphJson(url);
-  if (data.error) return null;
-  return parseFacebookVideoItem(data);
-}
-
 export async function syncFacebook(cfg, rows) {
-  var videos = await fetchAllFacebookVideos(cfg); // views arrive inline via field expansion
+  var videos = await fetchAllFacebookVideos(cfg); // light listing only - see FB_VIDEO_LIST_FIELDS' comment for why
   var results = [];
-  for (var row of rows) {
-    var candidate = null;
-    var method = null;
-    var score = null;
 
+  await mapWithConcurrency(rows, FB_INSIGHTS_CONCURRENCY, async function (row) {
+    var candidate = null, method = null, score = null;
     var m = matchContent(row.postDate, row.text, videos);
     if (m) {
       candidate = findById(videos, m.id);
@@ -102,31 +118,37 @@ export async function syncFacebook(cfg, rows) {
       score = m.score;
     }
 
+    var insights = candidate ? await fetchFacebookVideoInsights(cfg, candidate.id, candidate.length) : null;
+
     // A manually-pasted/cached Facebook URL is trusted as a fallback when
-    // date+text matching didn't find anything - same reasoning as
-    // Instagram's manual-url path, except this can go straight to a direct
-    // by-ID fetch (see fetchFacebookVideoById) instead of only searching
+    // date+text matching found nothing, or found a candidate with no usable
+    // views - same reasoning as Instagram's manual-url path, except this
+    // can go straight to a direct by-ID fetch instead of only searching
     // within the bulk listing, since a Facebook URL's ID is real and
-    // fetchable on its own even when /video_reels never surfaces the item.
-    if ((!candidate || candidate.views === null || candidate.views === undefined) && row.facebookUrl) {
+    // fetchable on its own even when /video_reels never surfaces the item
+    // (confirmed live for at least one Instagram-crossposted Reel).
+    if ((!insights || insights.views === null || insights.views === undefined) && row.facebookUrl) {
       var savedId = extractFacebookVideoId(row.facebookUrl);
       if (savedId) {
-        var pinned = findById(videos, savedId) || await fetchFacebookVideoById(cfg, savedId);
-        if (pinned && pinned.views !== null && pinned.views !== undefined) {
-          candidate = pinned;
+        var pinnedListItem = findById(videos, savedId);
+        var pinnedInsights = await fetchFacebookVideoInsights(cfg, savedId, pinnedListItem ? pinnedListItem.length : null);
+        if (pinnedInsights && pinnedInsights.views !== null && pinnedInsights.views !== undefined) {
+          candidate = pinnedListItem || { id: savedId, permalink: row.facebookUrl };
+          insights = pinnedInsights;
           method = 'manual-url';
           score = null;
         }
       }
     }
 
-    if (!candidate || candidate.views === null || candidate.views === undefined) continue;
+    if (!insights || insights.views === null || insights.views === undefined) return;
     results.push({
-      row: row, views: candidate.views, isNewMatch: true, method: method, score: score, url: candidate.permalink,
-      likes: candidate.likes, hookRate: candidate.hookRate, avgWatchPct: candidate.avgWatchPct,
-      avgWatchTimeS: candidate.avgWatchTimeS, retention: candidate.retention
+      row: row, views: insights.views, isNewMatch: true, method: method, score: score, url: candidate.permalink,
+      likes: insights.likes, hookRate: insights.hookRate, avgWatchPct: insights.avgWatchPct,
+      avgWatchTimeS: insights.avgWatchTimeS, retention: insights.retention
     });
-  }
+  });
+
   return buildPlatformReport(rows, results);
 }
 
