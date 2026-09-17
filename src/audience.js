@@ -1,6 +1,6 @@
 import { fetchJson } from './http.js';
 import { GRAPH_API_VERSION } from './config.js';
-import { queryNotionDatabase, updateNotionPage, writeFollowerSnapshot, fetchFollowerSnapshots } from './notion.js';
+import { queryNotionDatabase, updateNotionPage, writeFollowerSnapshot, fetchFollowerSnapshots, writeManyWithRetry } from './notion.js';
 import { resolveInstagramUserId } from './instagram.js';
 import { fetchYouTubeFollowerHistoryForward } from './youtubeAnalytics.js';
 import { isImplausibleFollowerCount, latestPreciseSnapshot, looksApiRounded } from './followerSanity.js';
@@ -94,6 +94,7 @@ export async function syncAudience(cfg) {
 
   if (cfg.FOLLOWER_SNAPSHOTS_DATABASE_ID) {
     var today = isoDate(new Date());
+    var platformsToWrite = [];
     for (var platform of Object.keys(stats)) {
       var followers = stats[platform].followers;
       // A non-positive count (the Zernio 0 seen on TikTok's first sync) or a
@@ -105,17 +106,22 @@ export async function syncAudience(cfg) {
         console.log(platform + ' follower count ' + followers + ' looks implausible vs last snapshot ' + prev + ' - skipping snapshot.');
         continue;
       }
-      try {
-        await writeFollowerSnapshot(cfg, platform, today, followers);
-      } catch (e) { console.log(platform + ' follower snapshot failed: ' + e); }
+      platformsToWrite.push(platform);
     }
+    await writeManyWithRetry(platformsToWrite, function (platform) {
+      return writeFollowerSnapshot(cfg, platform, today, stats[platform].followers).catch(function (e) {
+        console.log(platform + ' follower snapshot failed: ' + e);
+        return null;
+      });
+    }, function (platform) { return platform + ' · ' + today; });
 
-    for (var snap of extraSnapshots) {
-      if (isImplausibleFollowerCount(snap.followers, null)) continue;
-      try {
-        await writeFollowerSnapshot(cfg, snap.platform, snap.date, snap.followers);
-      } catch (e) { console.log(snap.platform + ' reconstructed snapshot ' + snap.date + ' failed: ' + e); }
-    }
+    var plausibleExtraSnapshots = extraSnapshots.filter(function (snap) { return !isImplausibleFollowerCount(snap.followers, null); });
+    await writeManyWithRetry(plausibleExtraSnapshots, function (snap) {
+      return writeFollowerSnapshot(cfg, snap.platform, snap.date, snap.followers).catch(function (e) {
+        console.log(snap.platform + ' reconstructed snapshot ' + snap.date + ' failed: ' + e);
+        return null;
+      });
+    }, function (snap) { return snap.platform + ' · ' + snap.date; });
   }
 }
 
@@ -137,10 +143,14 @@ export async function writeAudienceStats(cfg, stats) {
   var data = await queryNotionDatabase(cfg, cfg.CHANNEL_STATS_DATABASE_ID, { page_size: 20 });
   if (data.object === 'error') { console.log('Channel Stats query failed: ' + data.message); return; }
 
-  for (var page of (data.results || [])) {
+  var pagesToWrite = (data.results || []).filter(function (page) {
+    var platform = (page.properties['Platform'].title || []).map(function (t) { return t.plain_text; }).join('');
+    return !!stats[platform];
+  });
+
+  await writeManyWithRetry(pagesToWrite, function (page) {
     var platform = (page.properties['Platform'].title || []).map(function (t) { return t.plain_text; }).join('');
     var s = stats[platform];
-    if (!s) continue;
     // Only "Platform" + "Followers" are guaranteed (the documented schema -
     // see Task 7 in the Miradex onboarding plan). "Updated At" and "Total
     // Channel Views" exist on Isogreen's database (created manually, ahead
@@ -153,6 +163,8 @@ export async function writeAudienceStats(cfg, stats) {
     if (s.totalViews !== undefined && page.properties['Total Channel Views']) {
       props['Total Channel Views'] = { number: s.totalViews };
     }
-    await updateNotionPage(cfg, page.id, props);
-  }
+    return updateNotionPage(cfg, page.id, props);
+  }, function (page) {
+    return (page.properties['Platform'].title || []).map(function (t) { return t.plain_text; }).join('');
+  });
 }

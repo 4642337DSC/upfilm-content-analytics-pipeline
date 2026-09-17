@@ -1,20 +1,19 @@
 import { fetchJson } from './http.js';
 import { NOTION_VERSION, TEXT_MATCH_THRESHOLD, TEXT_MARGIN } from './config.js';
-import { dateKeyInTz, mapWithConcurrency } from './util.js';
+import { dateKeyInTz } from './util.js';
 
-// Tried 3 here once (reasoning: Notion's documented limit is an average of
-// ~3 requests/second, so 3 workers "should" stay under it) - wrong, because
-// each worker fires its next request the instant the last one resolves, with
-// no pacing between them, so 3 workers in practice burst well past that
-// average. Confirmed live on isogreen's ~150-row sync: 46 writes hit
-// rate_limited, and the cascade got bad enough that a *later*, unrelated
-// Notion query (buildDashboard's own read, unrelated to these writes) also
-// got rate-limited and threw - which silently killed that run's entire
-// dashboard rebuild (sync.js's try/catch logged it and moved on, so the job
-// still reported "success" - the live site just quietly kept serving the
-// previous day's build). Back to 1 (== the original sequential for-loop)
-// until this has real request pacing, not just worker count, behind it.
-var NOTION_WRITE_CONCURRENCY = 1;
+// Concurrent Notion writers (tried 3, reasoning that Notion's documented
+// ~3 req/sec average "should" tolerate 3 workers) burst well past that
+// average, because each worker fires its next request the instant the last
+// one resolves with no pacing between them - confirmed live on isogreen's
+// ~150-row sync: 46 writes hit rate_limited, and the cascade got bad enough
+// that a *later*, unrelated Notion query (buildDashboard's own read) also
+// got rate-limited and threw, silently killing that run's dashboard rebuild
+// (sync.js's try/catch logged it and moved on, so the job still reported
+// "success" - the live site just quietly kept serving the previous day's
+// build). Every write loop in this file is therefore strictly sequential,
+// via writeManyWithRetry below, which paces each request instead of relying
+// on a worker-count limit.
 
 function notionHeaders(cfg) {
   return {
@@ -162,10 +161,58 @@ export async function queryNotionDatabase(cfg, databaseId, payload) {
   });
 }
 
+function sleep(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
+// notionWrite's own per-request retries (4 attempts, ~0.8-3.2s backoff) can
+// still exhaust and give up even at concurrency 1, because nothing paces the
+// *next* write - each one fires the instant the last resolved, still
+// bursting past Notion's ~3 req/sec average once a client has more than a
+// couple hundred rows/months/days to write in one run (see
+// NOTION_WRITE_CONCURRENCY's comment above). Confirmed live: a different
+// handful of writes failed with "You have been rate limited" on every day's
+// run, across every write loop in this file (per-video Shorts updates,
+// Monthly/Daily Views upserts, follower snapshots) - not just the one that
+// happened to be reported. A write that exhausts notionWrite's retries there
+// almost always isn't broken, just unlucky - it happened to run while the
+// limit was hot. Silently dropping it meant a freshly-matched video's very
+// first Views write (or a day's Monthly/Daily Views rollup) could vanish for
+// the rest of the run, only reappearing whatever day it later got lucky.
+var NOTION_WRITE_PACING_MS = 350;
+
+// Shared by every "loop of Notion writes" call site in this file
+// (writeUpdates, writeMonthlyViews, writeDailyViews, syncAudience's follower
+// snapshots) - paces sequential writes and gives anything that still fails
+// (rate-limited through all of notionWrite's own retries) one more attempt
+// after the rest of the batch has had time to clear, instead of dropping it
+// for the run. `writeFn(item)` performs the write (and, where applicable,
+// its own preceding find-existing-row lookup) and returns notionWrite's
+// result; `describe(item)` is only used for the log line.
+export async function writeManyWithRetry(items, writeFn, describe) {
+  var failed = [];
+  for (var i = 0; i < items.length; i++) {
+    var result = await writeFn(items[i]);
+    if (!result || result.object === 'error') failed.push(items[i]);
+    await sleep(NOTION_WRITE_PACING_MS);
+  }
+  if (!failed.length) return;
+  console.log('Retrying ' + failed.length + ' Notion write(s) that hit the rate limit: ' + failed.map(describe).join(', '));
+  await sleep(3000);
+  for (var j = 0; j < failed.length; j++) {
+    var item = failed[j];
+    var result2 = await writeFn(item);
+    if (!result2 || result2.object === 'error') {
+      console.log('Notion write still failing after retry pass (' + describe(item) + ') - giving up for this run.');
+    }
+    await sleep(NOTION_WRITE_PACING_MS);
+  }
+}
+
 // Upserts one row per { "YYYY-MM": views } entry into MONTHLY_VIEWS_DATABASE_ID.
 // Shared by every platform's monthly sync (youtube/facebook/instagram/tiktok).
 export async function writeMonthlyViews(cfg, platform, source, monthlyMap) {
-  for (var monthKey of Object.keys(monthlyMap)) {
+  await writeManyWithRetry(Object.keys(monthlyMap), async function (monthKey) {
     var views = monthlyMap[monthKey];
     var monthStart = monthKey + '-01';
     var existingId = await findMonthlyViewsRow(cfg, platform, monthStart);
@@ -177,12 +224,8 @@ export async function writeMonthlyViews(cfg, platform, source, monthlyMap) {
       'Source': { select: { name: source } },
       'Synced At': { date: { start: new Date().toISOString() } }
     };
-    if (existingId) {
-      await updateNotionPage(cfg, existingId, props);
-    } else {
-      await createNotionPage(cfg, cfg.MONTHLY_VIEWS_DATABASE_ID, props);
-    }
-  }
+    return existingId ? updateNotionPage(cfg, existingId, props) : createNotionPage(cfg, cfg.MONTHLY_VIEWS_DATABASE_ID, props);
+  }, function (monthKey) { return platform + ' · ' + monthKey; });
 }
 
 export async function findMonthlyViewsRow(cfg, platform, monthStart) {
@@ -204,7 +247,7 @@ export async function findMonthlyViewsRow(cfg, platform, monthStart) {
 // "Total views" KPI with real per-day numbers instead of a post-date-filtered
 // lifetime-total estimate. See src/dailyViews.js.
 export async function writeDailyViews(cfg, platform, source, dailyMap) {
-  for (var dateKey of Object.keys(dailyMap)) {
+  await writeManyWithRetry(Object.keys(dailyMap), async function (dateKey) {
     var views = dailyMap[dateKey];
     var existingId = await findDailyViewsRow(cfg, platform, dateKey);
     var props = {
@@ -215,12 +258,8 @@ export async function writeDailyViews(cfg, platform, source, dailyMap) {
       'Source': { select: { name: source } },
       'Synced At': { date: { start: new Date().toISOString() } }
     };
-    if (existingId) {
-      await updateNotionPage(cfg, existingId, props);
-    } else {
-      await createNotionPage(cfg, cfg.DAILY_VIEWS_DATABASE_ID, props);
-    }
-  }
+    return existingId ? updateNotionPage(cfg, existingId, props) : createNotionPage(cfg, cfg.DAILY_VIEWS_DATABASE_ID, props);
+  }, function (dateKey) { return platform + ' · ' + dateKey; });
 }
 
 export async function findDailyViewsRow(cfg, platform, dateKey) {
@@ -251,20 +290,16 @@ export async function writeFollowerSnapshot(cfg, platform, dateKey, followers) {
     'Followers': { number: followers },
     'Synced At': { date: { start: new Date().toISOString() } }
   };
-  if (existingId) {
-    await updateNotionPage(cfg, existingId, props);
-  } else {
-    await createNotionPage(cfg, cfg.FOLLOWER_SNAPSHOTS_DATABASE_ID, props);
-  }
+  return existingId ? updateNotionPage(cfg, existingId, props) : createNotionPage(cfg, cfg.FOLLOWER_SNAPSHOTS_DATABASE_ID, props);
 }
 
 // Bulk sibling of writeFollowerSnapshot, for backfilling a whole
 // { "YYYY-MM-DD": followers } map at once - see
 // scripts/backfill-follower-history.js.
 export async function writeFollowerSnapshots(cfg, platform, dailyMap) {
-  for (var dateKey of Object.keys(dailyMap)) {
-    await writeFollowerSnapshot(cfg, platform, dateKey, dailyMap[dateKey]);
-  }
+  await writeManyWithRetry(Object.keys(dailyMap), function (dateKey) {
+    return writeFollowerSnapshot(cfg, platform, dateKey, dailyMap[dateKey]);
+  }, function (dateKey) { return platform + ' · ' + dateKey; });
 }
 
 export async function findFollowerSnapshotRow(cfg, platform, dateKey) {
@@ -513,47 +548,9 @@ export function buildUpdatePayloads(cfg, rows, yt, fb, ig, tt) {
   return byPage;
 }
 
-function sleep(ms) {
-  return new Promise(function (resolve) { setTimeout(resolve, ms); });
-}
-
-// notionWrite's own per-request retries (4 attempts, ~0.8-3.2s backoff) were
-// tripping and giving up even at concurrency 1, because nothing paced the
-// *next* write - each one fired the instant the last resolved, still
-// bursting past Notion's ~3 req/sec average on a 150-200 row client (see
-// NOTION_WRITE_CONCURRENCY's comment above). Confirmed live: a different
-// handful of pageIds failed with "You have been rate limited" on every
-// day's run. A page that exhausts notionWrite's retries there almost always
-// isn't broken, just unlucky - it happened to be written while the limit
-// was hot. Silently dropping it meant a freshly-matched video's very first
-// Views write could vanish for the rest of the run, showing up to a viewer
-// as a video with no views data until whatever day it later got lucky.
-var NOTION_WRITE_PACING_MS = 350;
-
 export async function writeUpdates(cfg, rows, yt, fb, ig, tt) {
   var byPage = buildUpdatePayloads(cfg, rows, yt, fb, ig, tt);
-  var pageIds = Object.keys(byPage);
-  var failed = [];
-  await mapWithConcurrency(pageIds, NOTION_WRITE_CONCURRENCY, async function (pageId) {
-    var result = await updateNotionPage(cfg, pageId, byPage[pageId]);
-    if (!result || result.object === 'error') failed.push(pageId);
-    await sleep(NOTION_WRITE_PACING_MS);
-  });
-
-  // Second pass for anything that still failed - by now the rest of the
-  // run's write volume is done and the extra pause below gives Notion's
-  // rate limit window time to clear, so this catches the common case
-  // instead of leaving it for tomorrow's run to maybe get lucky on.
-  if (failed.length) {
-    console.log('Retrying ' + failed.length + ' Notion write(s) that hit the rate limit: ' + failed.join(', '));
-    await sleep(3000);
-    for (var i = 0; i < failed.length; i++) {
-      var pageId = failed[i];
-      var result = await updateNotionPage(cfg, pageId, byPage[pageId]);
-      if (!result || result.object === 'error') {
-        console.log('Notion write still failing after retry pass (' + pageId + ') - giving up for this run.');
-      }
-      await sleep(NOTION_WRITE_PACING_MS);
-    }
-  }
+  await writeManyWithRetry(Object.keys(byPage), function (pageId) {
+    return updateNotionPage(cfg, pageId, byPage[pageId]);
+  }, function (pageId) { return pageId; });
 }
