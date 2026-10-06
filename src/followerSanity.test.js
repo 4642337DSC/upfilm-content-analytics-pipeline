@@ -53,6 +53,20 @@ test('latestPreciseSnapshot skips rounded and zero tail entries', () => {
   assert.deepEqual(latestPreciseSnapshot(series), { date: '2026-08-02', value: 12156 });
 });
 
+test('latestPreciseSnapshot steps back before a trailing carried-forward run', () => {
+  var series = [
+    { date: '2026-08-31', value: 12174 },
+    { date: '2026-09-01', value: 12100 },
+    { date: '2026-09-02', value: 12100 },
+    { date: '2026-09-03', value: 12174 },
+    { date: '2026-09-04', value: 12174 },
+    { date: '2026-09-05', value: 12174 }
+  ];
+  assert.deepEqual(latestPreciseSnapshot(series), { date: '2026-08-31', value: 12174 });
+  // a short repeat (2 days) is plausible real data and is kept
+  assert.deepEqual(latestPreciseSnapshot(series.slice(0, 5)), { date: '2026-09-04', value: 12174 });
+});
+
 test('latestPreciseSnapshot returns null when every entry is rounded or zero', () => {
   assert.equal(latestPreciseSnapshot([{ date: '2026-08-05', value: 12100 }, { date: '2026-08-06', value: 0 }]), null);
   assert.equal(latestPreciseSnapshot([]), null);

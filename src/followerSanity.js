@@ -59,9 +59,25 @@ export function isImplausibleFollowerCount(next, prev, maxFraction) {
 // whose value is positive and not API-rounded - the newest point safe to
 // anchor a precise forward reconstruction on. null when the series has no
 // such entry (all rounded, all zero, or empty).
+//
+// Also skips a trailing run of CARRIED_RUN_MIN+ identical values: YouTube
+// Analytics lags 2-3 days, so a day with no new delta rows re-emits its
+// anchor unchanged. Re-anchoring on that carried value every day froze the
+// series (12,174 from 2026-08-31 on) because the real deltas for the lag
+// window were never fetched. A run that long is treated as carry-forward and
+// the anchor steps back to the last reading before it, so the next walk
+// re-fetches those days' real deltas. Anchoring earlier is always safe.
+var CARRIED_RUN_MIN = 3;
+
 export function latestPreciseSnapshot(series) {
   if (!Array.isArray(series)) return null;
-  for (var i = series.length - 1; i >= 0; i--) {
+  var end = series.length;
+  if (end) {
+    var runStart = end - 1;
+    while (runStart > 0 && series[runStart - 1] && series[runStart - 1].value === series[end - 1].value) runStart--;
+    if (end - runStart >= CARRIED_RUN_MIN) end = runStart;
+  }
+  for (var i = end - 1; i >= 0; i--) {
     var s = series[i];
     if (s && typeof s.value === 'number' && s.value > 0 && !looksApiRounded(s.value)) return s;
   }
