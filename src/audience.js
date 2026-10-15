@@ -3,7 +3,7 @@ import { GRAPH_API_VERSION } from './config.js';
 import { queryNotionDatabase, updateNotionPage, writeFollowerSnapshot, fetchFollowerSnapshots, writeManyWithRetry } from './notion.js';
 import { resolveInstagramUserId } from './instagram.js';
 import { fetchYouTubeFollowerHistoryForward } from './youtubeAnalytics.js';
-import { isImplausibleFollowerCount, latestPreciseSnapshot, looksApiRounded } from './followerSanity.js';
+import { isImplausibleFollowerCount, latestPreciseSnapshot, looksApiRounded, isApiExact } from './followerSanity.js';
 import { isoDate } from './util.js';
 
 // Don't reconstruct YouTube subscriber history forward across an unbounded
@@ -38,7 +38,7 @@ export async function syncAudience(cfg) {
       // snapshot we already trust to be precise (see followerSanity.js).
       var ytFollowers = apiSubs;
       var ytOAuth = !!(cfg.YOUTUBE_OAUTH_CLIENT_ID && cfg.YOUTUBE_OAUTH_CLIENT_SECRET && cfg.YOUTUBE_REFRESH_TOKEN);
-      if (ytOAuth && cfg.FOLLOWER_SNAPSHOTS_DATABASE_ID) {
+      if (ytOAuth && cfg.FOLLOWER_SNAPSHOTS_DATABASE_ID && !isApiExact(apiSubs)) {
         try {
           var series = await fetchFollowerSnapshots(cfg, 'YouTube');
           var anchor = latestPreciseSnapshot(series);

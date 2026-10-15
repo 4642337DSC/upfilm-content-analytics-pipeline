@@ -29,6 +29,14 @@ export function roundToSigFigs(value, sig) {
   return Math.round(value * mag) / mag;
 }
 
+// True when the Data API's subscriberCount is exact (it only rounds from
+// 1,000 subs up), so it should be used as-is instead of being replaced by an
+// Analytics-delta reconstruction - which lags 2-3 days and drifts (ISOGREEN
+// showed 837 against a real 865).
+export function isApiExact(value) {
+  return typeof value === 'number' && isFinite(value) && value > 0 && value < 1000;
+}
+
 // True when `value` could be a YouTube-Data-API-rounded subscriber count -
 // i.e. it's >= 1,000 (below that the API is exact) and already equal to its
 // own 3-significant-figure rounding. Used to avoid anchoring a precise

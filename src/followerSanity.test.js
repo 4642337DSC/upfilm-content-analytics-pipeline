@@ -71,3 +71,13 @@ test('latestPreciseSnapshot returns null when every entry is rounded or zero', (
   assert.equal(latestPreciseSnapshot([{ date: '2026-08-05', value: 12100 }, { date: '2026-08-06', value: 0 }]), null);
   assert.equal(latestPreciseSnapshot([]), null);
 });
+
+test('isApiExact: true only for positive counts under 1,000', async () => {
+  const { isApiExact } = await import('./followerSanity.js');
+  assert.equal(isApiExact(865), true);
+  assert.equal(isApiExact(999), true);
+  assert.equal(isApiExact(1000), false);
+  assert.equal(isApiExact(12100), false);
+  assert.equal(isApiExact(0), false);
+  assert.equal(isApiExact(NaN), false);
+});
