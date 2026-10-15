@@ -2,7 +2,7 @@ import { getConfig, requireConfig } from '../src/config.js';
 import { fetchNotionRows, writeFollowerSnapshots, fetchFollowerSnapshots } from '../src/notion.js';
 import { fetchJson } from '../src/http.js';
 import { fetchYouTubeDailyFollowers, fetchYouTubeFollowerHistoryForward } from '../src/youtubeAnalytics.js';
-import { latestPreciseSnapshot, looksApiRounded } from '../src/followerSanity.js';
+import { latestPreciseSnapshot, looksApiRounded, isApiExact } from '../src/followerSanity.js';
 import { fetchFacebookDailyFollowers } from '../src/facebook.js';
 import { fetchInstagramDailyFollowers, fetchInstagramCurrentFollowers } from '../src/instagram.js';
 
@@ -56,7 +56,12 @@ if (ytEnabled) {
     // already exists (from an earlier run of this script), re-anchor: walk
     // the exact Analytics deltas FORWARD from it to get a precise
     // "current", then hand that to the backward reconstruction instead.
-    var existing = latestPreciseSnapshot(await fetchFollowerSnapshots(cfg, 'YouTube'));
+    // Under 1,000 subs the Data API count is exact: anchor on it directly.
+    // Re-anchoring on stored snapshots would re-import their drift (ISOGREEN
+    // stored 837 against a real 865).
+    var apiExact = isApiExact(currentSubs);
+    if (apiExact) console.log('Data API subscriber count ' + currentSubs + ' is exact (<1,000) - anchoring on it.');
+    var existing = apiExact ? null : latestPreciseSnapshot(await fetchFollowerSnapshots(cfg, 'YouTube'));
     if (existing) {
       try {
         var forward = await fetchYouTubeFollowerHistoryForward(cfg, existing.date, existing.value, end);
@@ -67,7 +72,7 @@ if (ytEnabled) {
       } catch (e) {
         console.log('Forward re-anchor failed, using Data API count: ' + e);
       }
-    } else if (looksApiRounded(currentSubs)) {
+    } else if (!apiExact && looksApiRounded(currentSubs)) {
       console.log('No precise YouTube snapshot to re-anchor on - reconstruction will carry the Data API\'s ~3-sig-fig rounding (' + currentSubs + '). Re-run once a precise series exists to tighten it.');
     }
     console.log('Reconstructing YouTube daily subscriber history from ' + currentSubs + ' current subscribers...');
